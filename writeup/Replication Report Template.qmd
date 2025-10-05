@@ -22,9 +22,9 @@ This replication will involve programming two online experiments using the same 
 
 ### Repository
 
-**Link to repository:** https://github.com/malejandramartinez/patil2018/tree/main
+**Link to repository:** https://github.com/psych251/patil2018/tree/main
 
-**Link to original paper:** https://github.com/malejandramartinez/patil2018/blob/main/original_paper/patil-duncan-2018.pdf
+**Link to original paper:** https://github.com/psych251/patil2018/tree/main/original_paper 
 
 ## Methods
 
