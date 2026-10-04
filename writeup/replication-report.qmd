@@ -1,6 +1,6 @@
 ---
-title: "Replication of Problems 1 and 2 of Tversky & Kahneman (1981, *Science*)"
-author: "Your Name (your.email@stanford.edu)"
+title: "Replication of Patil and Duncan (2018, *Psychological Science*)"
+author: "María Alejandra Martínez Ortiz (alemz@stanford.edu)"
 date: today
 date-format: long
 format:
@@ -75,20 +75,17 @@ original_p_loss <- original$risky[original$condition == "loss"] / original$n[ori
 ::: {.callout-note appearance="simple" icon=false}
 ## Project links
 
-- **Original paper:** Tversky, A., & Kahneman, D. (1981). The framing of decisions and the
-  psychology of choice. *Science, 211*(4481), 453–458. <https://doi.org/10.1126/science.7455683>
+- **Original paper:** Patil, A., Duncan, K. (2018). Lingering Cognitive States Shape Fundamental Mnemonic Abilities. *Psychological Science, 29*(1), 45–55 <https://doi.org/10.1177/0956797617728592>
 - **Preregistration:** [OSF registration](https://osf.io/XXXXX) *(registered YYYY-MM-DD, before final data collection)*
-- **Live experiment:** <https://psych251.github.io/your-repo/> (take the study exactly as participants did)
-- **Repository:** <https://github.com/psych251/your-repo> (experiment code, data, and this report)
+- **Live experiment:** <https://psych251.github.io/patil2018/> (take the study exactly as participants did)
+- **Repository:** <https://github.com/psych251/patil2018> (experiment code, data, and this report)
 :::
 
 # AI use statement
 
-::: {.callout-tip icon=false}
-## Guidance
+I will use Claude Code to help with coding the experiments and for revision of analysis code. 
 
-This statement comes first so a reader knows how the work was produced before reading it. Keep
-it current from the start of the project rather than reconstructing it at the end.
+::: {.callout-tip icon=false}
 
 **Course policy: you write all of the text in this report yourself.** AI tools may help with
 code, and may comment on drafts you have written, but they may not write, rewrite or paraphrase
@@ -237,14 +234,24 @@ bind_rows(
 
 ## Introduction
 
-::: {.callout-tip icon=false}
-## Guidance
+### Justification
 
-One or two paragraphs, no abstract and no literature review: that is in the original paper.
-Say what the original study found, which specific finding you are replicating, and why it
-matters to you. Write the Introduction and Methods in the past tense, even though you write
-them before collecting data.
-:::
+In this paper, Patil and Duncan found that recent exposure to familiarity selectively improved associative memory (Experiment 1), and that this effect decayed over seconds (Experiment 2). During my PhD, I plan to study the development of different memory subprocesses, including pattern completion and separation, so this paper will help me better understand how these processes are studied in adults, as well as how this type of data is analyzed, for example, using a Signal Detection Theory framework to assess memory accuracy.
+
+### Procedure and Challenges
+
+This replication involved creating two online experiments using the same stimuli from the original paper, which the authors made available on the Open Science Framework. The stimuli consisted of 484 images on a white background. Unlike the original study, I collected data online through Prolific. One challenge I faced was obtaining quality data from an online sample, which required implementing features that prevented bots from completing the task.
+
+### Statistical tests
+
+Separate 2 (preceding judgment: old vs. new) × 2 (stimulus: object vs. scene) repeated measures analyses of variance (ANOVAs) were used to analyze corrected
+associative-memory accuracy, response time on trials on which associative memory was correct, and d′.Paired-samples t tests (two-tailed) were used to examine
+simple effects. For pairwise comparisons, t tests were conducted with Bonferroni correction. Two generalized mixed-effects models were estimated with an
+unstructured covariance matrix to control for response time on the preceding trial and preceding trial type, respectively.
+
+### Extension
+
+A possible extension is to add more trials and have a larger sample size. 
 
 ## Methods
 
