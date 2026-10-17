@@ -13,6 +13,7 @@ const copies = [
   ["@jspsych/plugin-html-keyboard-response/dist/index.browser.min.js", "plugin-html-keyboard-response.js"],
   ["@jspsych/plugin-html-button-response/dist/index.browser.min.js", "plugin-html-button-response.js"],
   ["@jspsych/plugin-instructions/dist/index.browser.min.js", "plugin-instructions.js"],
+  ["@jspsych/plugin-preload/dist/index.browser.min.js", "plugin-preload.js"],
   ["@jspsych/plugin-survey/dist/index.browser.min.js", "plugin-survey.js"],
   ["@jspsych/plugin-survey/css/survey.css", "plugin-survey.css"],
   ["@jspsych/plugin-survey-likert/dist/index.browser.min.js", "plugin-survey-likert.js"],

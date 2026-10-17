@@ -1,20 +1,41 @@
 /*
- * Psych 251 experiment template: demo experiment.
+ * Replication of Patil & Duncan (2018), Psychological Science 29(1), Experiment 1:
+ * "Lingering cognitive states shape fundamental mnemonic abilities."
  *
- * This file is the one you edit. It builds a jsPsych 8 timeline and wires it to DataSaver
- * (src/save.js), which writes to your Firebase project. Everything below is a working
- * example you can replace piece by piece:
+ * Design summary
+ *   IV       Preceding judgment ("old" vs "new" on the previous retrieval trial), within subjects,
+ *            not manipulated directly: it is the participant's own previous response. Crossed with
+ *            stimulus category (scene vs object), also within subjects.
+ *   DVs      Retrieval trials (task "retrieval"): item memory from `judgment` vs `is_old` (d'),
+ *            associative memory from `response_label` vs `studied_word` (`assoc_correct`), RT in
+ *            `rt`. The preceding trial is recorded on each row (`prev_judgment`,
+ *            `prev_response_label`, `prev_is_old`, `prev_rt`), so the analysis needs no re-joining.
+ *   Trials   Encoding: 8 blocks (4 scene, 4 object, alternating), each trial = 1 s fixation,
+ *            3 s image + word, 1.5 s vividness rating (H J K L). Retrieval: 4 blocks; each trial =
+ *            2 s image (D new, F old/can't recall word, J ancient, K plain, L safe), 1 s fixation ISI.
+ *   Random   Per participant: which half of each category is studied, image-word pairing (each word
+ *            used equally often within category), encoding order, which category starts encoding
+ *            (`first_encoding_category`, random assignment) and retrieval (`first_retrieval_category`).
+ *            Retrieval alternates scene/object; at most 4 new images in a row; old/new transition
+ *            probability ~.50.
+ *   Exclude  Paper: prior participation in similar studies, drowsiness throughout (post-study
+ *            questions, task "post_study"). Analysis removes trials whose correct word equals the
+ *            previous response (`studied_word === prev_response_label`).
  *
- *   1. consent           course-wide consent text (required at the start of every study)
- *   2. instructions
- *   3. demographics      a multi-question survey page (jsPsych "survey" plugin, SurveyJS)
- *   4. framing task      a between-subjects manipulation with random assignment
- *   5. lexical decision  a short keyboard reaction-time block (trial-level data)
- *   6. feedback          Likert + free text
- *   7. debrief           saves data, then shows thanks or redirects to Prolific
+ * Timeline
+ *   1. consent            course-wide consent text (required first)
+ *   2. preload            all 484 images
+ *   3. welcome
+ *   4. demographics
+ *   5. encoding           instructions, then 8 blocks with self-paced breaks
+ *   6. retrieval          instructions, then 4 blocks with self-paced breaks
+ *   7. post-study         strategy, drowsiness, prior participation
+ *   8. feedback           Likert + free text
+ *   9. debrief            saves data, then shows thanks or redirects to Prolific (required last)
  *
- * The example manipulation is the classic "Asian disease" framing problem
- * (Tversky & Kahneman, 1981): people are risk-averse for gains and risk-seeking for losses.
+ * Images are placeholders until the original stimuli are available: scenes from Konkle et al.
+ * (2010) and objects from Brady et al. (2008); see stimuli/manifest.csv. To swap in the originals,
+ * replace the files in stimuli/scenes and stimuli/objects (keep the names, or edit the lists below).
  */
 
 // ---------------------------------------------------------------------------
@@ -25,12 +46,12 @@ window.TEMPLATE_VERSION = "0.1.0";
 const EXPERIMENT = {
   // Firestore path: experiments/<id>/participants/... Change it when you start a new study
   // so pilot data and real data never mix (e.g. "smith2016-pilot-a", "smith2016-final").
-  id: "framing-demo",
+  id: "patil2018-pilot-a",
 
   // Trials per Firestore write. 1 = save every trial the moment it finishes (dropouts leave
-  // partial data). The free tier allows 20,000 writes/day: with 200 participants x 100 trials
-  // you would exceed it, so raise this for long trial-based tasks (e.g. 20).
-  chunk_size: 1,
+  // partial data). The free tier allows 20,000 writes/day. This study records ~1,000 rows per
+  // participant, so 20 per write gives ~55 writes per participant.
+  chunk_size: 20,
 
   // Also store the complete jsPsych dataset on the participant document at the end.
   // Costs one extra write and makes export robust; turn off if trials are very large.
@@ -43,12 +64,30 @@ const EXPERIMENT = {
   // Contact shown in consent and debrief.
   contact_email: "stanfordpsych251@gmail.com",
 
-  // Does this study need a physical keyboard? The demo does (the word task uses F and J).
-  // On a phone or tablet no keyboard appears, so a participant cannot answer those trials;
-  // they would time out silently and the session would still look complete. When true, such
-  // devices are turned away before consent. Set to false if your study is buttons/touch only.
+  // Does this study need a physical keyboard? Yes: every encoding and retrieval response is a key.
   requires_keyboard: true,
+
+  // Images per category (scenes and objects each). Half are studied, half are new at test.
+  // Experiment 1 used 242 of each (484 total). Must be even, and at most the number of files.
+  n_per_category: 242,
+  n_encoding_blocks_per_category: 4, // 8 encoding blocks in total, alternating category
+  n_retrieval_blocks: 4,
+
+  // Timing in ms, from the paper's Method.
+  timing: {
+    encoding_fixation: 1000,
+    encoding_pair: 3000,
+    encoding_rating: 1500,
+    retrieval_image: 2000,
+    retrieval_isi: 1000,
+  },
 };
+
+// The three words and the retrieval keys, as in the paper.
+const WORDS = ["ancient", "plain", "safe"];
+const RETRIEVAL_KEYS = { d: "new", f: "skip", j: "ancient", k: "plain", l: "safe" };
+const VIVIDNESS_KEYS = ["h", "j", "k", "l"]; // h = very vivid (1) ... l = not vivid at all (4)
+const N_IMAGE_FILES = 242;                     // files per category in stimuli/
 
 // True on anything with a mouse, trackpad, or stylus, including laptops with touchscreens.
 // False on phones and tablets without a pointing device, which are also the devices with no
@@ -66,6 +105,13 @@ const CHUNK_SIZE = Number(URL_PARAMS.get("chunk_size")) || EXPERIMENT.chunk_size
 // Test-only: `?cc=CODE` sets a Prolific completion code during emulator runs, so the test
 // suite can check the screen a participant sees once you have set yours. Ignored in live runs.
 if (USE_EMULATOR && URL_PARAMS.get("cc")) EXPERIMENT.prolific_completion_code = URL_PARAMS.get("cc");
+// Test-only: `?n=N` shrinks the study to N images per category and `?timescale=X` multiplies
+// every duration by X, so the robot can play the whole flow in seconds. Honoured only in
+// emulator runs or on localhost, never on the live site.
+const TEST_OVERRIDES = USE_EMULATOR || ["localhost", "127.0.0.1"].includes(window.location.hostname);
+if (TEST_OVERRIDES && URL_PARAMS.get("n")) EXPERIMENT.n_per_category = Number(URL_PARAMS.get("n"));
+const TIMESCALE = (TEST_OVERRIDES && Number(URL_PARAMS.get("timescale"))) || 1;
+const T = Object.fromEntries(Object.entries(EXPERIMENT.timing).map(([k, v]) => [k, Math.round(v * TIMESCALE)]));
 
 // ---------------------------------------------------------------------------
 // Boot: connect the saver first so even a crash in the first trial gets logged.
@@ -143,12 +189,100 @@ if (USE_EMULATOR && URL_PARAMS.get("cc")) EXPERIMENT.prolific_completion_code = 
     experiment_id: EXPERIMENT.id,
   });
 
-  // Random assignment to a between-subjects condition, recorded on every trial and on the
-  // participant document. (For exact counterbalancing you would need a server; random
-  // assignment is fine at course sample sizes.)
-  const condition = jsPsych.randomization.sampleWithoutReplacement(["gain", "loss"], 1)[0];
-  jsPsych.data.addProperties({ condition: condition });
-  saver.updateParticipant({ condition: condition });
+  // -------------------------------------------------------------------------
+  // Stimulus lists and randomization (all per participant)
+  // -------------------------------------------------------------------------
+  const R = jsPsych.randomization;
+  const N = EXPERIMENT.n_per_category;
+  if (N % 2 !== 0 || N > N_IMAGE_FILES) throw new Error("n_per_category must be even and <= " + N_IMAGE_FILES);
+  const pad = (i) => String(i).padStart(3, "0");
+  const CATEGORIES = ["scene", "object"];
+
+  // For each category: sample N images, study half (with a balanced word for each), keep half new.
+  const studied = {}; // category -> [{ image, category, studied_word }]
+  const unstudied = {};
+  for (const cat of CATEGORIES) {
+    const files = R.sampleWithoutReplacement(
+      Array.from({ length: N_IMAGE_FILES }, (_, i) => `stimuli/${cat}s/${cat}_${pad(i + 1)}.jpg`), N);
+    const half = N / 2;
+    // Each word appears an equal number of times (within one, if half is not divisible by 3).
+    const words = R.shuffle(Array.from({ length: half }, (_, i) => WORDS[i % WORDS.length]));
+    studied[cat] = files.slice(0, half).map((image, i) => ({ image, category: cat, studied_word: words[i] }));
+    unstudied[cat] = files.slice(half).map((image) => ({ image, category: cat, studied_word: null }));
+  }
+
+  // Which category starts encoding is counterbalanced by random assignment; retrieval likewise.
+  const firstEncoding = R.sampleWithoutReplacement(CATEGORIES, 1)[0];
+  const firstRetrieval = R.sampleWithoutReplacement(CATEGORIES, 1)[0];
+  jsPsych.data.addProperties({ first_encoding_category: firstEncoding, first_retrieval_category: firstRetrieval });
+  saver.updateParticipant({ first_encoding_category: firstEncoding, first_retrieval_category: firstRetrieval });
+
+  // Split items into k near-equal consecutive chunks (121 -> 31, 30, 30, 30).
+  function chunks(items, k) {
+    const out = [];
+    let start = 0;
+    for (let b = 0; b < k; b++) {
+      const size = Math.floor(items.length / k) + (b < items.length % k ? 1 : 0);
+      out.push(items.slice(start, start + size));
+      start += size;
+    }
+    return out;
+  }
+
+  // Encoding blocks alternate category, starting with firstEncoding.
+  const nEnc = EXPERIMENT.n_encoding_blocks_per_category;
+  const encChunks = Object.fromEntries(CATEGORIES.map((c) => [c, chunks(R.shuffle(studied[c]), nEnc)]));
+  const otherCat = (c) => (c === "scene" ? "object" : "scene");
+  const encodingBlocks = [];
+  for (let b = 0; b < nEnc * 2; b++) {
+    const cat = b % 2 === 0 ? firstEncoding : otherCat(firstEncoding);
+    encChunks[cat][Math.floor(b / 2)].forEach((item) => (item.encoding_block = b + 1));
+    encodingBlocks.push(encChunks[cat][Math.floor(b / 2)]);
+  }
+
+  // Retrieval sequence: categories alternate; old/new is drawn trial by trial in proportion to
+  // what is left in that category, never more than 4 new in a row, and the sequence is accepted
+  // only if its old/new switch rate is within about 1% of .50 (at least 2 switches of slack).
+  function buildRetrievalSequence() {
+    const L = 2 * N;
+    const targetSwitches = 0.5 * (L - 1);
+    const slack = Math.max(2, 0.01 * L);
+    for (let attempt = 0; attempt < 20000; attempt++) {
+      const left = Object.fromEntries(CATEGORIES.map((c) => [c, { old: N / 2, new: N / 2 }]));
+      const seq = [];
+      let newRun = 0;
+      let failed = false;
+      for (let i = 0; i < L; i++) {
+        const cat = i % 2 === 0 ? firstRetrieval : otherCat(firstRetrieval);
+        const l = left[cat];
+        let isOld;
+        if (newRun >= 4) isOld = true;
+        else isOld = Math.random() < l.old / (l.old + l.new);
+        if (isOld && l.old === 0) isOld = false;
+        if (!isOld && l.new === 0) isOld = true;
+        if ((isOld && l.old === 0) || (!isOld && newRun >= 4)) { failed = true; break; }
+        isOld ? l.old-- : l.new--;
+        newRun = isOld ? 0 : newRun + 1;
+        seq.push({ category: cat, is_old: isOld });
+      }
+      if (failed) continue;
+      let switches = 0;
+      for (let i = 1; i < L; i++) if (seq[i].is_old !== seq[i - 1].is_old) switches++;
+      if (Math.abs(switches - targetSwitches) <= slack) return seq;
+    }
+    throw new Error("Could not build a retrieval sequence that meets the constraints");
+  }
+  const oldPool = Object.fromEntries(CATEGORIES.map((c) => [c, R.shuffle(studied[c])]));
+  const newPool = Object.fromEntries(CATEGORIES.map((c) => [c, R.shuffle(unstudied[c])]));
+  const retrievalItems = buildRetrievalSequence().map((slot, i) => {
+    const item = slot.is_old ? oldPool[slot.category].pop() : newPool[slot.category].pop();
+    return { ...item, is_old: slot.is_old, retrieval_position: i + 1 };
+  });
+  const retrievalBlocks = chunks(retrievalItems, EXPERIMENT.n_retrieval_blocks);
+  retrievalBlocks.forEach((block, b) => block.forEach((item, j) => {
+    item.retrieval_block = b + 1;
+    item.trial_in_block = j + 1;
+  }));
 
   // -------------------------------------------------------------------------
   // 1. Consent (course-wide IRB text; edit only the contact address)
@@ -179,23 +313,40 @@ if (USE_EMULATOR && URL_PARAMS.get("cc")) EXPERIMENT.prolific_completion_code = 
   };
 
   // -------------------------------------------------------------------------
-  // 2. Instructions
+  // 2. Preload every image this participant will see
   // -------------------------------------------------------------------------
-  const instructions = {
+  const preload = {
+    type: jsPsychPreload,
+    images: retrievalItems.map((it) => it.image),
+    message: "<p>Loading images…</p>",
+    show_progress_bar: true,
+    continue_after_error: false,
+    error_message: "<p>The images could not be loaded. Please check your connection and reload the page.</p>",
+    max_load_time: 120000,
+    data: { task: "preload" },
+  };
+
+  // -------------------------------------------------------------------------
+  // 3. Welcome
+  // -------------------------------------------------------------------------
+  const welcome = {
     type: jsPsychInstructions,
     pages: [
       `<h2>Welcome</h2>
-       <p>This short study has three parts: a few questions about you, one decision problem,
-       and a quick word task. It takes about three minutes.</p>`,
+       <p>This is a study about memory for pictures. It has two main parts. First you will see
+       pictures of scenes and objects, each paired with a word. Then your memory for them will be
+       tested. At the end there are a few short questions.</p>
+       <p>The study takes about 60 minutes. There are short breaks between blocks.</p>`,
       `<p>Please complete the study in one sitting, in a quiet place, on a laptop or desktop
-       computer. Use the buttons or the arrow keys to move between pages.</p>`,
+       computer with a keyboard. Close other tabs and silence your phone. Use the buttons or the
+       arrow keys to move between pages.</p>`,
     ],
     show_clickable_nav: true,
     data: { task: "instructions" },
   };
 
   // -------------------------------------------------------------------------
-  // 3. Demographics (survey plugin: one page, several question types)
+  // 4. Demographics (survey plugin: one page, several question types)
   // -------------------------------------------------------------------------
   const demographics = {
     type: jsPsychSurvey,
@@ -220,91 +371,218 @@ if (USE_EMULATOR && URL_PARAMS.get("cc")) EXPERIMENT.prolific_completion_code = 
   };
 
   // -------------------------------------------------------------------------
-  // 4. Framing problem (between-subjects: gain vs loss frame)
+  // 5. Encoding: image-word pairs, vividness rating
   // -------------------------------------------------------------------------
-  const framingText = {
-    gain: {
-      a: "If Program A is adopted, 200 people will be saved.",
-      b: "If Program B is adopted, there is a one-third probability that 600 people will be saved, and a two-thirds probability that no people will be saved.",
-    },
-    loss: {
-      a: "If Program A is adopted, 400 people will die.",
-      b: "If Program B is adopted, there is a one-third probability that nobody will die, and a two-thirds probability that 600 people will die.",
-    },
-  };
-  const framing = {
-    type: jsPsychHtmlButtonResponse,
-    stimulus: () => `
-      <div class="framing">
-        <p>Imagine that the country is preparing for the outbreak of an unusual disease, which is
-        expected to kill 600 people. Two alternative programs to combat the disease have been
-        proposed. Assume that the exact scientific estimates of the consequences of the programs
-        are as follows:</p>
-        <ul class="programs">
-          <li>${framingText[condition].a}</li>
-          <li>${framingText[condition].b}</li>
-        </ul>
-        <p>Which of the two programs would you favor?</p>
-      </div>`,
-    choices: ["Program A", "Program B"],
-    data: { task: "framing" },
-    on_finish: (data) => {
-      // Program A is the certain option in both frames; B is the risky gamble.
-      data.choice = data.response === 0 ? "certain" : "risky";
-    },
-  };
+  const keyRow = (pairs) =>
+    `<div class="key-reminder">${pairs.map(([k, label]) => `<span><kbd>${k}</kbd> ${label}</span>`).join("")}</div>`;
+  const vividReminder = keyRow([["H", "very vivid"], ["J", ""], ["K", ""], ["L", "not vivid at all"]]);
+  const retrievalReminder = keyRow([["D", "new"], ["F", "old?"], ["J", "ancient"], ["K", "plain"], ["L", "safe"]]);
 
-  // -------------------------------------------------------------------------
-  // 5. Lexical decision (short RT block with trial-level logging)
-  // -------------------------------------------------------------------------
-  const ldInstructions = {
+  const encodingInstructions = {
     type: jsPsychInstructions,
     pages: [
-      `<h2>Word task</h2>
-       <p>You will see a string of letters. Press <strong>F</strong> if it is a real English word
-       and <strong>J</strong> if it is not. Respond as quickly and accurately as you can.
-       Place your fingers on F and J now.</p>`,
+      `<h2>Part 1: Study</h2>
+       <p>You will see a series of pictures, one at a time. Some are <strong>scenes</strong> (places,
+       indoors and outdoors) and some are <strong>objects</strong>. Each picture is shown with one of
+       three words: <strong>ancient</strong>, <strong>plain</strong> or <strong>safe</strong>.</p>
+       <p>For each pair, <strong>vividly imagine a scenario in which the word could describe the
+       picture</strong>. Each pair is on the screen for 3 seconds.</p>`,
+      `<p>After each pair disappears, rate how vivid the scenario you imagined was, using four keys:</p>
+       ${vividReminder}
+       <p>H means very vivid and L means not vivid at all; J and K are in between. You have 1.5
+       seconds to answer, so keep your fingers on H, J, K and L.</p>`,
+      `<p><strong>Your memory for the pictures and their words will be tested later.</strong></p>
+       <p>This part has ${encodingBlocks.length} short blocks, alternating between scenes and objects,
+       with a break after each one. Press <strong>Next</strong> to begin.</p>`,
     ],
     show_clickable_nav: true,
     data: { task: "instructions" },
   };
-  const ldItems = [
-    { word: "TABLE", is_word: true }, { word: "GARDEN", is_word: true },
-    { word: "PLANET", is_word: true }, { word: "SILVER", is_word: true },
-    { word: "FLIRP", is_word: false }, { word: "MANTOR", is_word: false },
-    { word: "BRENDLE", is_word: false }, { word: "TOSKIN", is_word: false },
-  ];
-  const fixation = {
+
+  const encFixation = {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: '<div class="fixation">+</div>',
     choices: "NO_KEYS",
-    trial_duration: 500,
-    data: { task: "fixation" },
+    trial_duration: T.encoding_fixation,
+    css_classes: ["task-screen"],
+    record_data: false, // pure timing filler; dropping ~730 rows keeps full_data under Firestore's 1 MiB limit
   };
-  const ldTrial = {
+  const encPair = {
     type: jsPsychHtmlKeyboardResponse,
-    stimulus: () => `<div class="stimulus">${jsPsych.evaluateTimelineVariable("word")}</div>`,
-    choices: ["f", "j"],
-    trial_duration: 3000,
+    stimulus: () => `
+      <div class="study-pair" data-word="${jsPsych.evaluateTimelineVariable("studied_word")}">
+        <img class="stim-img" src="${jsPsych.evaluateTimelineVariable("image")}" alt="">
+        <div class="study-word">${jsPsych.evaluateTimelineVariable("studied_word")}</div>
+      </div>`,
+    choices: "NO_KEYS",
+    trial_duration: T.encoding_pair,
+    css_classes: ["task-screen"],
+    save_trial_parameters: { stimulus: false },
     data: {
-      task: "lexical_decision",
-      word: jsPsych.timelineVariable("word"),
-      is_word: jsPsych.timelineVariable("is_word"),
+      task: "encoding",
+      image: jsPsych.timelineVariable("image"),
+      category: jsPsych.timelineVariable("category"),
+      studied_word: jsPsych.timelineVariable("studied_word"),
+      encoding_block: jsPsych.timelineVariable("encoding_block"),
+    },
+  };
+  const encRating = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `<div class="rating-prompt" data-screen="vividness"><p>How vivid was the scenario you imagined?</p>${vividReminder}</div>`,
+    choices: VIVIDNESS_KEYS,
+    trial_duration: T.encoding_rating,
+    response_ends_trial: false, // fixed 1.5 s window, so every trial has the same timing
+    css_classes: ["task-screen"],
+    save_trial_parameters: { stimulus: false },
+    data: {
+      task: "vividness",
+      image: jsPsych.timelineVariable("image"),
+      category: jsPsych.timelineVariable("category"),
+      studied_word: jsPsych.timelineVariable("studied_word"),
+      encoding_block: jsPsych.timelineVariable("encoding_block"),
     },
     on_finish: (data) => {
-      const expected = data.is_word ? "f" : "j";
-      data.correct = data.response === expected;
       data.timed_out = data.response === null;
+      // 1 = very vivid (H) ... 4 = not vivid at all (L)
+      data.vividness_rating = data.timed_out ? null : VIVIDNESS_KEYS.indexOf(data.response) + 1;
     },
   };
-  const lexicalDecision = {
-    timeline: [fixation, ldTrial],
-    timeline_variables: ldItems,
-    randomize_order: true,
+
+  const breakScreen = (text, extra) => ({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `<div class="break-screen"><p>${text}</p><p>Press the <strong>space bar</strong> when you are ready to continue.</p></div>`,
+    choices: [" "],
+    css_classes: ["task-screen"],
+    data: { task: "break", ...extra },
+  });
+
+  const encoding = [encodingInstructions];
+  encodingBlocks.forEach((block, b) => {
+    const cat = block[0].category;
+    encoding.push(breakScreen(
+      `Study block ${b + 1} of ${encodingBlocks.length}: <strong>${cat}s</strong>.<br>Imagine a scenario in which the word describes the picture, then rate how vivid it was.`,
+      { phase: "encoding", block: b + 1, block_category: cat }));
+    encoding.push({ timeline: [encFixation, encPair, encRating], timeline_variables: block });
+  });
+
+  // -------------------------------------------------------------------------
+  // 6. Retrieval: old/new + associative judgment in one key press
+  // -------------------------------------------------------------------------
+  const retrievalInstructions = {
+    type: jsPsychInstructions,
+    pages: [
+      `<h2>Part 2: Memory test</h2>
+       <p>Now you will see pictures one at a time, alternating between scenes and objects. Some of
+       them you studied in Part 1 (<strong>old</strong>); others you have never seen (<strong>new</strong>).</p>`,
+      `<p>For each picture, press <strong>one</strong> key:</p>
+       <ul class="key-list">
+         <li><kbd>D</kbd> if the picture is <strong>new</strong></li>
+         <li>If the picture is <strong>old</strong>, the word it was paired with:
+           <kbd>J</kbd> ancient, <kbd>K</kbd> plain, <kbd>L</kbd> safe</li>
+         <li><kbd>F</kbd> if you think the picture is old but you cannot remember its word</li>
+       </ul>
+       <p>Keep your fingers on D, F, J, K and L.</p>`,
+      `<p>Each picture is shown for only <strong>2 seconds</strong>, and you must answer while it is on
+       the screen, so respond quickly. Only your first key press counts. A reminder of the keys is
+       shown under each picture:</p>
+       ${retrievalReminder}
+       <p>This part has ${retrievalBlocks.length} blocks with a break after each. Press <strong>Next</strong> to begin.</p>`,
+    ],
+    show_clickable_nav: true,
+    data: { task: "instructions" },
+  };
+
+  // The previous retrieval trial in the same block, for the preceding-judgment fields.
+  let prevRetrieval = null;
+  const retrievalTrial = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: () => `
+      <div class="retrieval" data-old="${jsPsych.evaluateTimelineVariable("is_old")}"
+           data-word="${jsPsych.evaluateTimelineVariable("studied_word") || ""}">
+        <img class="stim-img" src="${jsPsych.evaluateTimelineVariable("image")}" alt="">
+        ${retrievalReminder}
+      </div>`,
+    choices: Object.keys(RETRIEVAL_KEYS),
+    trial_duration: T.retrieval_image,
+    response_ends_trial: false, // the image stays up for the full 2 s, as in the paper
+    css_classes: ["task-screen"],
+    save_trial_parameters: { stimulus: false },
+    data: {
+      task: "retrieval",
+      image: jsPsych.timelineVariable("image"),
+      category: jsPsych.timelineVariable("category"),
+      is_old: jsPsych.timelineVariable("is_old"),
+      studied_word: jsPsych.timelineVariable("studied_word"),
+      retrieval_block: jsPsych.timelineVariable("retrieval_block"),
+      trial_in_block: jsPsych.timelineVariable("trial_in_block"),
+      retrieval_position: jsPsych.timelineVariable("retrieval_position"),
+    },
+    on_finish: (data) => {
+      data.timed_out = data.response === null;
+      data.response_label = data.timed_out ? null : RETRIEVAL_KEYS[data.response]; // new/skip/ancient/plain/safe
+      data.judgment = data.timed_out ? null : data.response_label === "new" ? "new" : "old";
+      data.item_correct = data.timed_out ? null : (data.judgment === "old") === data.is_old;
+      // Associative hit: old image, correct word. Defined only when an old image was called old.
+      data.assoc_correct = data.is_old && data.judgment === "old" ? data.response_label === data.studied_word : null;
+      // Preceding trial, within the block (the first trial after a break has no preceding trial).
+      const p = data.trial_in_block > 1 ? prevRetrieval : null;
+      data.prev_judgment = p ? p.judgment : null;
+      data.prev_response_label = p ? p.response_label : null;
+      data.prev_is_old = p ? p.is_old : null;
+      data.prev_rt = p ? p.rt : null;
+      prevRetrieval = { judgment: data.judgment, response_label: data.response_label, is_old: data.is_old, rt: data.rt };
+    },
+  };
+  const retrievalIsi = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: '<div class="fixation">+</div>',
+    choices: "NO_KEYS",
+    trial_duration: T.retrieval_isi,
+    css_classes: ["task-screen"],
+    record_data: false, // pure timing filler; dropping ~730 rows keeps full_data under Firestore's 1 MiB limit
+  };
+
+  const retrieval = [retrievalInstructions];
+  retrievalBlocks.forEach((block, b) => {
+    retrieval.push(breakScreen(
+      `Memory test block ${b + 1} of ${retrievalBlocks.length}.<br>D = new, F = old but can't remember the word, J = ancient, K = plain, L = safe.`,
+      { phase: "retrieval", block: b + 1 }));
+    retrieval.push({ timeline: [retrievalIsi, retrievalTrial], timeline_variables: block });
+  });
+
+  // -------------------------------------------------------------------------
+  // 7. Post-study questions (the paper's exclusions: drowsiness, prior participation)
+  // -------------------------------------------------------------------------
+  const postStudy = {
+    type: jsPsychSurvey,
+    survey_json: {
+      showQuestionNumbers: "off",
+      completeText: "Continue",
+      pages: [
+        {
+          elements: [
+            {
+              type: "comment", name: "strategy", rows: 3,
+              title: "In Part 1, how did you try to remember the pictures and their words?",
+            },
+            {
+              type: "radiogroup", name: "drowsiness", title: "Did you feel drowsy or sleepy during the study?",
+              choices: ["Not at all", "At some points", "Throughout most of the study"],
+            },
+            {
+              type: "radiogroup", name: "prior_participation",
+              title: "Have you taken part in another study in which you studied pictures paired with the words \"ancient\", \"plain\" and \"safe\"?",
+              choices: ["Yes", "No", "Not sure"],
+            },
+          ],
+        },
+      ],
+    },
+    data: { task: "post_study" },
   };
 
   // -------------------------------------------------------------------------
-  // 6. Feedback
+  // 8. Feedback
   // -------------------------------------------------------------------------
   const feedback = {
     type: jsPsychSurveyLikert,
@@ -323,15 +601,19 @@ if (USE_EMULATOR && URL_PARAMS.get("cc")) EXPERIMENT.prolific_completion_code = 
   };
 
   // -------------------------------------------------------------------------
-  // 7. Debrief
+  // 9. Debrief
   // -------------------------------------------------------------------------
   const debrief = {
     type: jsPsychHtmlButtonResponse,
     stimulus: `
       <h2>Debrief</h2>
-      <p>Thank you. In this study we tested whether describing the same outcomes as lives saved or
-      as lives lost changes which program people choose. Different participants saw different
-      wordings. If you have questions about this research, contact
+      <p>Thank you. This study looks at whether the memory decision you have just made changes the
+      next one. Earlier research found that people remembered a picture's word better right after
+      recognising a different picture as old than right after judging one as new, while recognising
+      the pictures themselves was unaffected. We are testing whether that finding holds up. Nothing
+      in the study was designed to deceive you; the order of old and new pictures was simply
+      arranged in advance.</p>
+      <p>If you have questions about this research, contact
       <a href="mailto:${EXPERIMENT.contact_email}">${EXPERIMENT.contact_email}</a>.
       Press the button to save your responses and finish.</p>`,
     choices: ["Finish"],
@@ -340,11 +622,12 @@ if (USE_EMULATOR && URL_PARAMS.get("cc")) EXPERIMENT.prolific_completion_code = 
 
   await jsPsych.run([
     consent,
-    instructions,
+    preload,
+    welcome,
     demographics,
-    framing,
-    ldInstructions,
-    lexicalDecision,
+    ...encoding,
+    ...retrieval,
+    postStudy,
     feedback,
     comments,
     debrief,

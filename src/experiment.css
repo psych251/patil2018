@@ -9,3 +9,17 @@
 .framing .programs { margin: 1em 0; padding-left: 1.2em; }
 #jspsych-html-button-response-btngroup { text-align: center; }
 .thanks { text-align: center; }
+
+/* Patil & Duncan (2018) replication: task screens on a gray background, as in the paper. */
+/* jsPsych puts css_classes on .jspsych-content, so colour the whole page from there. */
+body:has(.jspsych-content.task-screen) { background: #9a9a9a; }
+.jspsych-content.task-screen { text-align: center; }
+.stim-img { width: 300px; height: 300px; object-fit: contain; display: block; margin: 0 auto; }
+.study-word { font-size: 32px; margin-top: 18px; font-family: system-ui, sans-serif; }
+.key-reminder { display: flex; justify-content: center; gap: 22px; margin-top: 18px; font-size: 16px; }
+.jspsych-display-element .key-reminder kbd, .jspsych-display-element .key-list kbd {
+  display: inline-block; min-width: 1.4em; padding: 1px 6px; border: 1px solid #555; border-radius: 4px;
+  background: #f4f4f4; color: #111; font-family: monospace; font-size: 15px; font-weight: bold; text-align: center;
+}
+.rating-prompt p, .break-screen p { font-size: 18px; text-align: center; }
+.key-list { line-height: 2; }
