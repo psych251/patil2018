@@ -120,7 +120,11 @@ test.describe("experiment", () => {
     const mode = await page.evaluate(() => window.__saver.mode);
     expect(mode).toBe(EMULATOR ? "emulator" : "offline");
 
-    await runThroughExperiment(page);
+    await runToDebrief(page);
+    // Simulate the participant leaving the tab and coming back, for the interaction log.
+    await page.evaluate(() => { window.dispatchEvent(new Event("blur")); window.dispatchEvent(new Event("focus")); });
+    await page.getByRole("button", { name: "Finish" }).click();
+    await expect(page.getByText("All done")).toBeVisible({ timeout: 30000 });
 
     // No uncaught errors from the experiment itself.
     expect(consoleErrors, "uncaught page errors").toEqual([]);
@@ -148,6 +152,11 @@ test.describe("experiment", () => {
     expect(pdoc.prolific_pid).toBe("robot123");
     expect(pdoc.n_trials).toBeGreaterThan(10);
     expect(typeof pdoc.full_data).toBe("string");
+    // Browser interaction log (jsPsych's blur/focus/fullscreen events) is saved at the end.
+    const interactions = JSON.parse(pdoc.interaction_data);
+    expect(interactions.some((e) => e.event === "blur" && typeof e.trial === "number")).toBe(true);
+    expect(pdoc.n_blur).toBeGreaterThanOrEqual(1);
+    expect(pdoc.n_focus).toBeGreaterThanOrEqual(1);
     const full = JSON.parse(pdoc.full_data);
     expect(full.length).toBe(pdoc.n_trials);
 

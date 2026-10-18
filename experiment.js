@@ -152,6 +152,15 @@ const T = Object.fromEntries(Object.entries(EXPERIMENT.timing).map(([k, v]) => [
     on_finish: async () => {
       const el = jsPsych.getDisplayElement();
       el.innerHTML = '<div id="finish-message"><p class="thanks">Saving your responses…</p></div>';
+      // Browser interactions jsPsych tracked during the session (leaving/returning to the tab or
+      // window, fullscreen changes), each with trial index and time. Saved once on the participant
+      // document; exported to participants.csv as JSON. Sessions abandoned midway do not have it.
+      const interactions = jsPsych.data.getInteractionData().values().slice(0, 2000);
+      saver.updateParticipant({
+        interaction_data: JSON.stringify(interactions),
+        n_blur: interactions.filter((e) => e.event === "blur").length,
+        n_focus: interactions.filter((e) => e.event === "focus").length,
+      });
       // finish() flushes remaining trials, marks the participant complete, and (only if
       // saving failed) appends a download-fallback box to the display element.
       const result = await saver.finish(jsPsych);
