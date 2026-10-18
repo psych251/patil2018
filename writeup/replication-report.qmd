@@ -15,8 +15,12 @@ format:
 execute:
   warning: false
   message: true
+editor: 
+  markdown: 
+    wrap: 72
 ---
 
+```{=html}
 <!--
 PSYCH 251 replication report template.
 
@@ -40,6 +44,7 @@ The code is wired to the template's demo experiment (the framing problem). Repla
 specifics with your study's as you go: the experiment ids, the original study's numbers, the
 exclusion rule, and the key comparison.
 -->
+```
 
 ```{r}
 #| label: setup
@@ -60,65 +65,86 @@ experiment_id_phase2 <- "patil2018-phase2"
 # statistics table, and the side-by-side figures. Replace these with your original study's
 # values, and say in a comment exactly where in the paper each one comes from.
 #
-# Tversky & Kahneman (1981), Problem 1 (gain frame, N = 152): 72% chose the certain program,
-# 28% the risky one. Problem 2 (loss frame, N = 155): 22% certain, 78% risky. The paper
-# reports percentages, so the counts below are reconstructed from them.
+# Patil & Duncan (2018), Experiment 1, N = 32 analysed (Method, p. 46).
+# Results, p. 48: corrected associative-memory accuracy was 8.23 percentage points higher
+# after an "old" judgment than after a "new" judgment on the preceding trial,
+# 95% CI [4.10, 12.36], F(1, 31) = 13.88, p = .001, partial eta squared = .31.
+original_n <- 32
 original <- tibble(
-  condition = c("gain", "loss"),
-  n         = c(152, 155),
-  risky     = round(c(0.28 * 152, 0.78 * 155))
+  N        = original_n,
+  estimate = 0.0823,   # old minus new, as a proportion
+  ci_low   = 0.0410,
+  ci_high  = 0.1236,
+  F        = 13.88,
+  df       = original_n - 1,
+  p        = 0.001,
+  pes      = 0.31
 )
-original_p_gain <- original$risky[original$condition == "gain"] / original$n[original$condition == "gain"]
-original_p_loss <- original$risky[original$condition == "loss"] / original$n[original$condition == "loss"]
+
+# Standardized paired effect for the power analysis: with 1 numerator df, F = t^2,
+# so d_z = t / sqrt(N) = sqrt(F) / sqrt(N), about 0.66. (The reported CI implies a slightly
+# larger t, about 4.1; the F is used because it is the test the paper reports.)
+original_dz <- sqrt(original$F) / sqrt(original_n)
 ```
 
-::: {.callout-note appearance="simple" icon=false}
+::: {.callout-note appearance="simple" icon="false"}
 ## Project links
 
-- **Original paper:** Patil, A., Duncan, K. (2018). Lingering Cognitive States Shape Fundamental Mnemonic Abilities. *Psychological Science, 29*(1), 45–55 <https://doi.org/10.1177/0956797617728592>
-- **Preregistration:** [OSF registration](https://osf.io/XXXXX) *(registered YYYY-MM-DD, before final data collection)*
-- **Live experiment:** <https://psych251.github.io/patil2018/> (take the study exactly as participants did)
-- **Repository:** <https://github.com/psych251/patil2018> (experiment code, data, and this report)
+-   **Original paper:** Patil, A., Duncan, K. (2018). Lingering
+    Cognitive States Shape Fundamental Mnemonic Abilities.
+    *Psychological Science, 29*(1), 45–55
+    <https://doi.org/10.1177/0956797617728592>
+-   **Preregistration:** [OSF registration](https://osf.io/XXXXX)
+    *(registered YYYY-MM-DD, before final data collection)*
+-   **Live experiment:** <https://psych251.github.io/patil2018/> (take
+    the study exactly as participants did)
+-   **Repository:** <https://github.com/psych251/patil2018> (experiment
+    code, data, and this report)
 :::
 
 # AI use statement
 
-I will use Claude Code to help with coding the experiments and for revision of analysis code. 
+I will use Claude Code to help with coding the experiments and for
+revision of analysis code.
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
+**Course policy: you write all of the text in this report yourself.** AI
+tools may help with code, and may comment on drafts you have written,
+but they may not write, rewrite or paraphrase any of the report's text.
+That includes "polishing" a paragraph.
 
-**Course policy: you write all of the text in this report yourself.** AI tools may help with
-code, and may comment on drafts you have written, but they may not write, rewrite or paraphrase
-any of the report's text. That includes "polishing" a paragraph.
-
-List every AI tool you used on this project, what you used it for, and how you checked what it
-produced. Include coding assistants (for example Claude Code, Codex, Copilot) and chat
-assistants. Name the model and version where you know it. "How you checked" is the important
-column: say what you verified yourself, not that the output "looked right". If you used no AI
-tools, replace the table with a sentence saying so.
+List every AI tool you used on this project, what you used it for, and
+how you checked what it produced. Include coding assistants (for example
+Claude Code, Codex, Copilot) and chat assistants. Name the model and
+version where you know it. "How you checked" is the important column:
+say what you verified yourself, not that the output "looked right". If
+you used no AI tools, replace the table with a sentence saying so.
 :::
 
 | Tool and model | What it was used for | How you checked the output |
-|---|---|---|
+|------------------------|------------------------|------------------------|
 | *e.g., Claude Code (Claude Opus 5)* | *Implemented the experiment from the original Methods section* | *Ran the automated tests; took the study myself; compared every screen with the original materials* |
 | *e.g., Claude Code (Claude Opus 5)* | *Drafted the analysis code* | *Checked the exclusion counts by hand; confirmed the key test matches the preregistration* |
 | *e.g., ChatGPT* | *Comments on my draft of the Introduction (no text generated)* | *Decided which comments to act on and made every change myself; checked any factual claim against the source* |
 
-I wrote all of the text in this report myself. AI tools were not used to write, rewrite or
-paraphrase it, and were not used to generate, alter, or impute any participant data. I take full
-responsibility for the content of this report, including any errors introduced by AI tools.
+I wrote all of the text in this report myself. AI tools were not used to
+write, rewrite or paraphrase it, and were not used to generate, alter,
+or impute any participant data. I take full responsibility for the
+content of this report, including any errors introduced by AI tools.
 
 # Key statistics
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance
 
-One row per study for the key comparison: the original, your Phase 1 replication, and your
-Phase 2 extension. The table fills itself in from the data as each phase is exported, using the
-analysis code below (open "Show the analysis code"), which is shared by both phases so they are
-analysed identically. Edit that code once, here, to match your design and preregistered
-exclusion rule. On the scientific-extension track, the Phase 2 row reports the new comparison:
-adapt its code and say so in the caption.
+One row per study for the key comparison: the original, your Phase 1
+replication, and your Phase 2 extension. The table fills itself in from
+the data as each phase is exported, using the analysis code below (open
+"Show the analysis code"), which is shared by both phases so they are
+analysed identically. Edit that code once, here, to match your design
+and preregistered exclusion rule. On the scientific-extension track, the
+Phase 2 row reports the new comparison: adapt its code and say so in the
+caption.
 :::
 
 ```{r}
@@ -210,24 +236,28 @@ have_phase2 <- !is.null(phase2)
 ```{r}
 #| label: key-stats
 #| echo: false
+# Each row is a one-row tibble with the same columns as `original` (N, estimate, ci_low,
+# ci_high, F, df, p, pes). The Phase 1 and Phase 2 rows still call the demo functions
+# (diff_ci, risky_counts); replace them with your own analysis code before you have data.
 fmt_row <- function(study, r) {
   if (is.null(r)) {
-    return(tibble(Study = study, N = "", `Effect (loss − gain)` = "not yet collected",
-                  `95% CI` = "", `χ²(1)` = "", p = ""))
+    return(tibble(Study = study, N = "", `Effect (old − new)` = "not yet collected",
+                  `95% CI` = "", F = "", p = "", `ηp²` = ""))
   }
   tibble(Study = study, N = as.character(r$N),
-         `Effect (loss − gain)` = sprintf("%.0f points", 100 * r$estimate),
-         `95% CI` = sprintf("[%.0f, %.0f]", 100 * r$ci_low, 100 * r$ci_high),
-         `χ²(1)` = sprintf("%.2f", r$statistic),
-         p = format.pval(r$p, digits = 2, eps = 0.001))
+         `Effect (old − new)` = sprintf("%.2f points", 100 * r$estimate),
+         `95% CI` = sprintf("[%.2f, %.2f]", 100 * r$ci_low, 100 * r$ci_high),
+         F = sprintf("F(1, %d) = %.2f", as.integer(r$df), r$F),
+         p = format.pval(r$p, digits = 2, eps = 0.001),
+         `ηp²` = sprintf("%.2f", r$pes))
 }
 bind_rows(
-  fmt_row("Original", diff_ci(original)),
+  fmt_row("Original", original),
   fmt_row("Phase 1: replication", if (have_data) diff_ci(risky_counts(phase1))),
   fmt_row("Phase 2: extension", if (have_phase2) diff_ci(risky_counts(phase2)))
 ) |>
-  knitr::kable(align = "lrlllr",
-               caption = "Key comparison: difference in the percentage of analysed participants choosing the risky program, loss frame minus gain frame.")
+  knitr::kable(align = "lrlllrr",
+               caption = "Key comparison: corrected associative-memory accuracy after an \"old\" judgment minus after a \"new\" judgment on the preceding trial, in percentage points.")
 ```
 
 # Phase 1: Replication
@@ -236,129 +266,225 @@ bind_rows(
 
 ### Justification
 
-In this paper, Patil and Duncan found that recent exposure to familiarity selectively improved associative memory (Experiment 1), and that this effect decayed over seconds (Experiment 2). During my PhD, I plan to study the development of different memory subprocesses, including pattern completion and separation, so this paper will help me better understand how these processes are studied in adults, as well as how this type of data is analyzed, for example, using a Signal Detection Theory framework to assess memory accuracy.
+In this paper, Patil and Duncan found that recent exposure to
+familiarity selectively improved associative memory (Experiment 1), and
+that this effect decayed over seconds (Experiment 2). During my PhD, I
+plan to study the development of different memory subprocesses,
+including pattern completion and separation, so this paper will help me
+better understand how these processes are studied in adults, as well as
+how this type of data is analyzed, for example, using a Signal Detection
+Theory framework to assess memory accuracy.
 
 ### Procedure and Challenges
 
-This replication involved creating two online experiments using the same stimuli from the original paper, which the authors made available on the Open Science Framework. The stimuli consisted of 484 images on a white background. Unlike the original study, I collected data online through Prolific. One challenge I faced was obtaining quality data from an online sample, which required implementing features that prevented bots from completing the task.
+This replication involved creating two online experiments using the same
+stimuli from the original paper, which the authors made available on the
+Open Science Framework. The stimuli consisted of 484 images on a white
+background. Unlike the original study, I collected data online through
+Prolific. One challenge I faced was obtaining quality data from an
+online sample, which required implementing features that prevented bots
+from completing the task.
 
 ### Statistical tests
 
-Separate 2 (preceding judgment: old vs. new) × 2 (stimulus: object vs. scene) repeated measures analyses of variance (ANOVAs) were used to analyze corrected
-associative-memory accuracy, response time on trials on which associative memory was correct, and d′.Paired-samples t tests (two-tailed) were used to examine
-simple effects. For pairwise comparisons, t tests were conducted with Bonferroni correction. Two generalized mixed-effects models were estimated with an
-unstructured covariance matrix to control for response time on the preceding trial and preceding trial type, respectively.
+Separate 2 (preceding judgment: old vs. new) × 2 (stimulus: object vs.
+scene) repeated measures analyses of variance (ANOVAs) were used to
+analyze corrected associative-memory accuracy, response time on trials
+on which associative memory was correct, and d′.Paired-samples t tests
+(two-tailed) were used to examine simple effects. For pairwise
+comparisons, t tests were conducted with Bonferroni correction. Two
+generalized mixed-effects models were estimated with an unstructured
+covariance matrix to control for response time on the preceding trial
+and preceding trial type, respectively.
 
 ### Extension
 
-A possible extension is to add more trials and have a larger sample size. 
+Because one of my concerns is that the length of this study (\~50
+minutes) will affect data quality, I would like to run it with less
+trials to see if an effect can be detected. Also, inspired by a
+suggestion from a TA, I could also test for differences between age
+groups.
 
 ## Methods
 
 ### Power analysis
 
-::: {.callout-tip icon=false}
-## Guidance
-
-Report the original effect size, the sample needed for 80%, 90% and 95% power to detect it,
-and the sample you chose and why. The table below is computed from the original study's
-numbers entered at the top of this file.
-
-Original effects are usually overestimates, so powering to the original effect tends to
-produce an underpowered replication. One widely used alternative is to collect 2.5 times the
-original sample, which gives 80% power to detect an effect the original study had only 33%
-power to detect (Simonsohn, 2015; Experimentology §10.4). Say which approach you used, and
-what the course's participant budget allowed.
-:::
+The estimate reported in the paper is **F(1, 31) = 13.88**, and the
+effect size is **ηp2 = 0.31**. I chose to maintain the original sample
+size mainly due to budget constraints. This experiment takes around \~50
+minutes to be completed, and I am planning to play \$10/h. Therefore,
+increasing the sample size to reach half of the reported effect size
+would require a budget outside of the scope of the class.
 
 ```{r}
 #| label: power
+# Within-participant design: the key test is a paired comparison (the 1-df main effect of
+# preceding judgment), so power is for a paired t test at the original d_z.
 power_rows <- map_dfr(c(0.80, 0.90, 0.95), function(pw) {
-  n <- power.prop.test(p1 = original_p_gain, p2 = original_p_loss,
-                       power = pw, sig.level = 0.05)$n
-  tibble(power = scales::percent(pw), n_per_group = ceiling(n), n_total = 2 * ceiling(n))
+  n <- power.t.test(delta = original_dz, sd = 1, power = pw, sig.level = 0.05,
+                    type = "paired")$n
+  tibble(power = scales::percent(pw), n_total = ceiling(n))
 })
 
-original_effect <- original_p_loss - original_p_gain
-two_and_half <- ceiling(2.5 * original$n)
+# 2.5 times the original sample (Simonsohn, 2015). A single number now: the inline text
+# below still indexes two frames (two_and_half[2] will show NA until it is rewritten).
+two_and_half <- ceiling(2.5 * original_n)
 
-knitr::kable(power_rows, col.names = c("Power", "N per frame", "N total"),
+knitr::kable(power_rows, col.names = c("Power", "N participants"),
              caption = sprintf(
-               "Sample needed to detect the original effect (risky choice: %.0f%% gain vs %.0f%% loss, a difference of %.0f points), two-sided alpha = .05.",
-               100 * original_p_gain, 100 * original_p_loss, 100 * original_effect))
+               "Sample needed to detect the original effect (%.2f points, d_z = %.2f from F(1, %d) = %.2f), paired, two-sided alpha = .05.",
+               100 * original$estimate, original_dz, original$df, original$F))
 ```
 
-For comparison, 2.5 times the original sample would be `r two_and_half[1]` in the gain frame
-and `r two_and_half[2]` in the loss frame (`r sum(two_and_half)` in total).
+For comparison, 2.5 times the original sample would be
+`r two_and_half[1]` in the gain frame and `r two_and_half[2]` in the
+loss frame (`r sum(two_and_half)` in total).
 
 ### Planned sample
 
-::: {.callout-tip icon=false}
-## Guidance
-
-Planned sample size and stopping rule, sampling frame (for example, "US residents on Prolific,
-fluent in English, 18 or older"), known demographics, and any preselection or screening. The
-stopping rule should be data-independent: "collect until N participants pass the exclusion
-criteria below" rather than "until the result is clear".
-:::
+The planned sample size is: 35 adult participants (18 and older) who are
+currently living in the US and are fluent in English.
 
 ### Materials
 
-::: {.callout-tip icon=false}
-## Guidance
+The stimuli will be the same as in the original experimental design:
 
-All materials. You can quote the original article directly: put the text in quotation marks
-and note that it was followed precisely, or quote it and point out the exceptions. Link to the
-live experiment above rather than pasting screenshots of every screen.
-:::
+*"Stimuli consisted of colored images of 242 natural indoor and outdoor
+scenes and 242 common objects (484 images total), along with three words
+(“ancient,” “plain,” “safe”)"*
+
+The authors published the original stimuli online, however, due to
+maintenance of the OSF website, I am currently using **a different set
+of images** of scenes and objects from the Brady Lab at UCLA and the
+Konkle lab at Harvard (Brady, Konkle, Alvarez & Oliva, 2008). As soon as
+I gain access to the orignal stimuli, the images will be replaced.
+
+Links to the provisional images:
+
+-   Konkle images set: https://konklab.fas.harvard.edu/#
+-   Brady lab images set: https://bradylab.ucsd.edu/stimuli.html
 
 ### Procedure
 
-::: {.callout-tip icon=false}
+The procedure will be close to the original experiment, with the main
+difference that the current replication will be held online. 
+
+
+
+As stated in the original paper:
+
+"*The experiment consisted of an encoding session in which participants
+associated each image with one of the three words and a retrieval test
+that simultaneously assessed associative memory for the words and item
+memory for the images.*
+
+*Encoding session. During each trial in the encoding session, an
+image-word pair was displayed on the screen for 3 s. Images were trial
+unique, and each image was pseudorandomly paired with one of the three
+words, such that all three words appeared an equal number of times
+across the experiment. Participants were asked to vividly imagine a
+scenario in which the word could describe the image to encourage deep
+processing of image-word pairs. After the pair disappeared, participants
+had 1.5 s to rate the imagined scenario on a 4-point continuous scale on
+the keyboard, using “h” (very vivid), “j,” “k,” and “l” (not vivid at
+all). A fixation cross was presented at the center of the screen for 1 s
+before each trial. A poststudy debriefing session revealed that all
+participants’ memoryencoding strategies were consistent with the
+instructions. Participants were informed before the encoding session
+that their memory would be assessed. The encoding session was split into
+eight 3-min blocks. Half the blocks consisted of scene-word pairs, and
+the remaining blocks consisted of object-word pairs. Scene and object
+blocks were presented in a counterbalanced alternating order.*
+
+*Retrieval session. During the memory test, we assessed
+participants’ item and associative memory simultaneously.
+Critically, we manipulated whether participants made
+each memory decision after an unrelated familiar or novel
+image. During each retrieval trial, an image was shown
+on the screen for 2 s. Participants were asked to indicate
+whether the image was new (by pressing the “d” key) or
+old, in which case they were asked to recall the word
+associated with it in the encoding session (by pressing
+the “j,” “k,” or “l” keys, which corresponded with “ancient,”
+“plain,” and “safe,” respectively). They were asked to press
+the “f” key if they thought that an image was old but were
+unable to recall the associated word (associative skip).
+Note that these response options allowed us to assess
+participants’ item and associative memory with a single
+response. The response window was intentionally short,
+consistent with past research (Duncan et al., 2012), so that
+(a) memory judgments were made before the mnemonic processing
+bias from the preceding trial dissipated and (b)
+the bias from the preceding trial would not be overcome
+with sufficient processing time. A central fixation cross
+was presented during a 1-s interstimulus interval (ISI).*
+
+*The retrieval session was split into four 6-min blocks.
+Half of the images presented during the memory test
+had been previously studied during the encoding session,
+while the remaining were novel. Critically, scene
+and object images alternated during the memory test.
+This reduced the possibility of consecutive old images
+semantically priming each other, because consecutive
+images always belonged to different stimulus categories
+and were, thus, studied during different encoding
+blocks. Stimulus presentation was predetermined such
+that no more than four new stimuli appeared consecutively
+and the transition probability between seeing old
+and new images was .50.*
+
+![](images/Screenshot%202026-10-17%20at%209.49.16%20PM.png){width="547"}
+
+::: {.callout-tip icon="false"}
 ## Guidance
 
-As for Materials: quote the original where you can and point out the exceptions. Describe the
-sequence a participant experiences, from consent to debrief, and how long it takes.
+As for Materials: quote the original where you can and point out the
+exceptions. Describe the sequence a participant experiences, from
+consent to debrief, and how long it takes.
 :::
 
 ### Analysis plan
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance
 
-The analysis strategy, as close to the original as possible: data cleaning rules, exclusion
-rules, covariates, and the model or test. Original papers often do not spell this out; say
-where you had to make a choice and what you chose.
+The analysis strategy, as close to the original as possible: data
+cleaning rules, exclusion rules, covariates, and the model or test.
+Original papers often do not spell this out; say where you had to make a
+choice and what you chose.
 
-**State the key analysis of interest explicitly.** That is the single test your replication
-stands or falls on, and it must match your preregistration. You can pre-specify additional
-analyses here too.
+**State the key analysis of interest explicitly.** That is the single
+test your replication stands or falls on, and it must match your
+preregistration. You can pre-specify additional analyses here too.
 :::
 
-**Key analysis of interest.** The proportion of participants choosing the risky program is
-higher in the loss frame than in the gain frame, tested with a chi-square test of independence
-on the 2 × 2 table of frame by choice. The effect size is the difference in the proportion
-choosing the risky program (loss minus gain), with a 95% confidence interval.
+**Key analysis of interest.** The proportion of participants choosing
+the risky program is higher in the loss frame than in the gain frame,
+tested with a chi-square test of independence on the 2 × 2 table of
+frame by choice. The effect size is the difference in the proportion
+choosing the risky program (loss minus gain), with a 95% confidence
+interval.
 
-**Exclusions.** Participants are excluded if they did not complete the study, if they answered
-no speeded trial at all (every lexical-decision trial timed out, the signature of a device
-without a keyboard), or if they answered fewer than 6 of the 8 lexical-decision trials
-correctly.
+**Exclusions.** Participants are excluded if they did not complete the
+study, if they answered no speeded trial at all (every lexical-decision
+trial timed out, the signature of a device without a keyboard), or if
+they answered fewer than 6 of the 8 lexical-decision trials correctly.
 
 ### Differences from the original study
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance
 
-Every known difference in sample, setting, procedure, materials, and analysis, one per row.
-Minimizing differences is the goal, but some always remain. For each one, say whether it is
-expected to matter, based on claims in the original article or later research on when the
-effect does and does not appear. The rows below are the demo's real differences and show the
-level of detail expected; replace them with yours.
+Every known difference in sample, setting, procedure, materials, and
+analysis, one per row. Minimizing differences is the goal, but some
+always remain. For each one, say whether it is expected to matter, based
+on claims in the original article or later research on when the effect
+does and does not appear. The rows below are the demo's real differences
+and show the level of detail expected; replace them with yours.
 :::
 
 | Aspect | Original study | This replication | Expected to matter? |
-|---|---|---|---|
+|------------------|------------------|------------------|------------------|
 | Sample | University students in Stanford and British Columbia classrooms | Adults recruited on Prolific | Possibly. Framing effects have been found in both student and general samples, but their size varies across populations. |
 | Setting | Paper questionnaire in class | Online, unsupervised, on the participant's own computer | Unlikely for a single vignette, though attention may be lower online. |
 | Wording | "an unusual Asian disease" | "an unusual disease" | Unlikely. The ethnonym is incidental to the manipulation and dated. |
@@ -368,11 +494,12 @@ level of detail expected; replace them with yours.
 
 ### Methods addendum (post data collection)
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance
 
-Leave this section out of the version you preregister. After data collection, report the
-actual sample and any deviation from the plan above.
+Leave this section out of the version you preregister. After data
+collection, report the actual sample and any deviation from the plan
+above.
 :::
 
 #### Actual sample
@@ -462,23 +589,24 @@ if (nrow(demo) > 0) {
 
 #### Deviations from the preregistered plan
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance
 
-Any deviation from the preregistered plan above, or "None". Changes made after seeing data
-belong here even if they seem minor, together with the reason.
+Any deviation from the preregistered plan above, or "None". Changes made
+after seeing data belong here even if they seem minor, together with the
+reason.
 :::
 
 ## Results
 
 ### Data preparation
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance
 
-Data preparation follows the analysis plan. Loading and exclusions are done by the shared
-analysis code under Key statistics (open "Show the analysis code"). Describe anything you did to
-the data beyond that.
+Data preparation follows the analysis plan. Loading and exclusions are
+done by the shared analysis code under Key statistics (open "Show the
+analysis code"). Describe anything you did to the data beyond that.
 :::
 
 ### Confirmatory analysis
@@ -506,14 +634,16 @@ if (all(dim(tab) == c(2, 2))) {
 
 ### Replication assessment
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance
 
-Judge the replication on effect sizes, not only on whether the key test is significant. Compare
-the replication estimate and its interval with the original: does the interval exclude zero, and
-does it include the original estimate? A significant result much smaller than the original, or
-a non-significant result whose interval still includes the original effect, are both
-informative and should be reported as such (Experimentology §3.2).
+Judge the replication on effect sizes, not only on whether the key test
+is significant. Compare the replication estimate and its interval with
+the original: does the interval exclude zero, and does it include the
+original estimate? A significant result much smaller than the original,
+or a non-significant result whose interval still includes the original
+effect, are both informative and should be reported as such
+(Experimentology §3.2).
 :::
 
 ```{r}
@@ -551,36 +681,43 @@ if (!is.null(rep)) {
 }
 ```
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance: show the original next to your replication
 
-**Every report should have a figure that puts the original finding and your replication side by
-side.** It is the single most informative thing in a replication report: a reader can see at a
-glance whether the effect came back, and how its size compares. Make it however you can, in
+**Every report should have a figure that puts the original finding and
+your replication side by side.** It is the single most informative thing
+in a replication report: a reader can see at a glance whether the effect
+came back, and how its size compares. Make it however you can, in
 roughly this order of preference:
 
-1. **Replot both from numbers.** Enter the original's summary statistics (means or proportions,
-   with SDs, SEs or CIs, and Ns) in the original-study chunk at the top of this file, and plot
-   them on the same axes as yours. That is what the demo figure below does.
-2. **Replot the original from its data**, if the authors shared it or it is in an open
-   repository, using exactly the same plotting code as for your own data.
-3. **Show the original figure as an image** next to yours if neither is possible. Save a
-   screenshot of it, for example as `writeup/images/original-figure.png`, and lay the two out
-   in columns:
+1.  **Replot both from numbers.** Enter the original's summary
+    statistics (means or proportions, with SDs, SEs or CIs, and Ns) in
+    the original-study chunk at the top of this file, and plot them on
+    the same axes as yours. That is what the demo figure below does.
 
-   ````markdown
-   ::: {layout-ncol=2}
-   ![Original: Tversky & Kahneman (1981), Figure 1](images/original-figure.png)
+2.  **Replot the original from its data**, if the authors shared it or
+    it is in an open repository, using exactly the same plotting code as
+    for your own data.
 
-   ```{{r}}
-   # your replication plot here
-   ```
-   :::
-   ````
+3.  **Show the original figure as an image** next to yours if neither is
+    possible. Save a screenshot of it, for example as
+    `writeup/images/original-figure.png`, and lay the two out in
+    columns:
 
-Whichever you choose, use the same measure, scale, condition order and error-bar meaning for
-both panels, label which is which, and cite the source of the original values or figure in the
-caption. If the original reported no variability, say so rather than leaving it out silently.
+    ```` markdown
+    ::: {layout-ncol=2}
+    ![Original: Tversky & Kahneman (1981), Figure 1](images/original-figure.png)
+
+    ```{{r}}
+    # your replication plot here
+    ```
+    :::
+    ````
+
+Whichever you choose, use the same measure, scale, condition order and
+error-bar meaning for both panels, label which is which, and cite the
+source of the original values or figure in the caption. If the original
+reported no variability, say so rather than leaving it out silently.
 :::
 
 ```{r}
@@ -594,11 +731,12 @@ comparison_plot(Original = original, `Phase 1: replication` = risky)
 
 ### Exploratory analyses
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance
 
-Any follow-up analyses (optional). Label them clearly as exploratory: they were not planned, so
-they generate hypotheses rather than test them.
+Any follow-up analyses (optional). Label them clearly as exploratory:
+they were not planned, so they generate hypotheses rather than test
+them.
 :::
 
 ```{r}
@@ -634,76 +772,86 @@ if (nrow(errors) > 0) {
 
 ### Summary of replication attempt
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance
 
-Open with one paragraph summarizing the result of the key analysis and your assessment of
-whether the original finding replicated, partially replicated, or failed to replicate. Base
-that judgment on the replication assessment above: the size of the effect relative to the
+Open with one paragraph summarizing the result of the key analysis and
+your assessment of whether the original finding replicated, partially
+replicated, or failed to replicate. Base that judgment on the
+replication assessment above: the size of the effect relative to the
 original, not just the p value.
 :::
 
 ### Commentary
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance
 
-Open-ended commentary, none of it long: (a) what the exploratory analyses suggest; (b) what the
-replication means, for example whether the differences between your study and the original are
-definitely, plausibly, or unlikely to be moderators of the result; and (c) any objections or
-challenges raised by you or the original authors.
+Open-ended commentary, none of it long: (a) what the exploratory
+analyses suggest; (b) what the replication means, for example whether
+the differences between your study and the original are definitely,
+plausibly, or unlikely to be moderators of the result; and (c) any
+objections or challenges raised by you or the original authors.
 :::
 
 # Phase 2: Extension
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance: choosing your extension
 
 Follow the Extension guidelines page on Canvas. In brief:
 
-- **By default the extension is a best-practices modification of your Phase 1 experiment.** If
-  your replication did not succeed, it is a **rescue**: address the plausible reasons for the
-  failure. If it did succeed, it is an **upgrade**: make the estimate more precise. Typical
-  changes are better or more reliable measurement, more trials, a within-participant design
-  where that is legitimate, comprehension and manipulation checks, clearer instructions, or a
-  larger or better-targeted sample.
-- **If your scientific extension pitch was approved at Milestone 3 and your replication
-  succeeded, propose that instead:** the original conditions rerun unchanged, plus the one
-  added condition or manipulation, with a power analysis for the new comparison.
-- On either track you may add exploratory measures **at the end** of the study.
-- Every change is listed and tagged by category below; everything else stays identical.
+-   **By default the extension is a best-practices modification of your
+    Phase 1 experiment.** If your replication did not succeed, it is a
+    **rescue**: address the plausible reasons for the failure. If it did
+    succeed, it is an **upgrade**: make the estimate more precise.
+    Typical changes are better or more reliable measurement, more
+    trials, a within-participant design where that is legitimate,
+    comprehension and manipulation checks, clearer instructions, or a
+    larger or better-targeted sample.
+-   **If your scientific extension pitch was approved at Milestone 3 and
+    your replication succeeded, propose that instead:** the original
+    conditions rerun unchanged, plus the one added condition or
+    manipulation, with a power analysis for the new comparison.
+-   On either track you may add exploratory measures **at the end** of
+    the study.
+-   Every change is listed and tagged by category below; everything else
+    stays identical.
 
 State your track on the line below, and delete the others.
 :::
 
-**Track:** Best-practices upgrade / Best-practices rescue / Scientific extension (approved at Milestone 3)
+**Track:** Best-practices upgrade / Best-practices rescue / Scientific
+extension (approved at Milestone 3)
 
 ## Rationale
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance
 
-One or two paragraphs. For a rescue: what are the plausible reasons Phase 1 did not reproduce the
-original result, and how does each change address one of them? For an upgrade: where is the
-Phase 1 estimate least precise or least trustworthy, and how will the changes improve it? For a
-scientific extension: what question does the added condition answer, and why does it follow from
-the original finding?
+One or two paragraphs. For a rescue: what are the plausible reasons
+Phase 1 did not reproduce the original result, and how does each change
+address one of them? For an upgrade: where is the Phase 1 estimate least
+precise or least trustworthy, and how will the changes improve it? For a
+scientific extension: what question does the added condition answer, and
+why does it follow from the original finding?
 :::
 
 ## Changes from Phase 1
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance
 
-Every change from the Phase 1 experiment, one per row, each tagged with a category: Measurement,
-Trials, Design, Checks, Instructions, Sample, Added condition (scientific track only), or
-Exploratory measure (end of study only). If it is not in this table, it does not change: same
-materials, wording, procedure, exclusion rule and analysis. The rows below are examples for the
-demo; replace them with yours.
+Every change from the Phase 1 experiment, one per row, each tagged with
+a category: Measurement, Trials, Design, Checks, Instructions, Sample,
+Added condition (scientific track only), or Exploratory measure (end of
+study only). If it is not in this table, it does not change: same
+materials, wording, procedure, exclusion rule and analysis. The rows
+below are examples for the demo; replace them with yours.
 :::
 
-| # | Category | Phase 1 | Phase 2 | Why |
-|---|---|---|---|---|
+| \# | Category | Phase 1 | Phase 2 | Why |
+|---------------|---------------|---------------|---------------|---------------|
 | 1 | Sample | 27 analysed participants | 300 analysed participants (150 per frame) | Phase 1's interval was too wide to distinguish the original effect from a much smaller one. |
 | 2 | Checks | No comprehension check | After the choice, participants say how many people are at risk (600) | Confirms participants read the scenario; failures are reported, and excluded only if preregistered. |
 | 3 | Exploratory measure | None | At the end: "How confident are you in your choice?" (1–7) | Exploratory only; collected after every confirmatory measure. |
@@ -712,71 +860,83 @@ Everything not listed above is identical to Phase 1.
 
 ## Power and sample
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance
 
-Justify the Phase 2 sample, and **state how you expect the estimate and its precision to compare
-with Phase 1**. For an upgrade, plan the sample around the confidence interval you want; for a
-rescue, around the power to detect the original effect, or the smallest effect you would still
-consider a successful replication; for a scientific extension, around the power to detect the new
-comparison. Set `phase2_n_per_group` in the code below; the table uses Phase 1's estimate if you
-have it and the original's otherwise.
+Justify the Phase 2 sample, and **state how you expect the estimate and
+its precision to compare with Phase 1**. For an upgrade, plan the sample
+around the confidence interval you want; for a rescue, around the power
+to detect the original effect, or the smallest effect you would still
+consider a successful replication; for a scientific extension, around
+the power to detect the new comparison. Set `phase2_n_per_group` in the
+code below; the table uses Phase 1's estimate if you have it and the
+original's otherwise.
 :::
 
 ```{r}
 #| label: phase2-power
-phase2_n_per_group <- 150   # planned analysed participants per condition in Phase 2
+# Within-participant design: every participant is in both conditions, so this is the total
+# number of analysed participants (the name is kept to match the guidance above).
+phase2_n_per_group <- 150   # planned analysed participants in Phase 2
 
-p1_counts <- if (have_data) risky_counts(phase1)
-p1_stats  <- if (have_data) diff_ci(p1_counts)
+# Phase 1 statistics: a one-row tibble with the same columns as `original` (N, estimate,
+# ci_low, ci_high, F, df, p, pes). NULL until your Phase 1 analysis code defines it; the
+# tables then fall back to the original study.
+p1_stats <- NULL
+
+# SD of the per-participant difference: from Phase 1 if available, otherwise implied by the
+# original CI (half-width = t(.975, N - 1) * SD / sqrt(N)).
+sd_from_ci <- function(r) (r$ci_high - r$ci_low) / 2 / qt(0.975, r$N - 1) * sqrt(r$N)
 basis <- if (!is.null(p1_stats)) {
-  list(gain = p1_counts$risky[p1_counts$condition == "gain"] / p1_counts$n[p1_counts$condition == "gain"],
-       loss = p1_counts$risky[p1_counts$condition == "loss"] / p1_counts$n[p1_counts$condition == "loss"],
-       source = "Phase 1")
+  list(sd_diff = sd_from_ci(p1_stats), dz = p1_stats$estimate / sd_from_ci(p1_stats), source = "Phase 1")
 } else {
-  list(gain = original_p_gain, loss = original_p_loss, source = "the original study")
+  list(sd_diff = sd_from_ci(original), dz = original_dz, source = "the original study")
 }
 
-# Expected 95% CI half-width on the difference at n per condition.
-half_width <- function(n) 1.96 * sqrt(basis$gain * (1 - basis$gain) / n + basis$loss * (1 - basis$loss) / n)
-power_at <- function(n, p1, p2) {
-  tryCatch(power.prop.test(n = n, p1 = p1, p2 = p2, sig.level = 0.05)$power, error = function(e) NA)
+# Expected 95% CI half-width on the paired difference with n participants.
+half_width <- function(n) qt(0.975, n - 1) * basis$sd_diff / sqrt(n)
+power_at <- function(n, dz) {
+  tryCatch(power.t.test(n = n, delta = dz, sd = 1, sig.level = 0.05, type = "paired")$power,
+           error = function(e) NA)
 }
 
 rows <- tibble(
   Study = c(if (!is.null(p1_stats)) "Phase 1 (actual)", "Phase 2 (planned)"),
-  `N analysed` = c(if (!is.null(p1_stats)) p1_stats$N, 2 * phase2_n_per_group),
-  `95% CI half-width` = c(if (!is.null(p1_stats)) sprintf("±%.0f points", 100 * (p1_stats$ci_high - p1_stats$ci_low) / 2),
-                          sprintf("±%.0f points (expected)", 100 * half_width(phase2_n_per_group)))
+  `N analysed` = c(if (!is.null(p1_stats)) p1_stats$N, phase2_n_per_group),
+  `95% CI half-width` = c(if (!is.null(p1_stats)) sprintf("±%.2f points", 100 * (p1_stats$ci_high - p1_stats$ci_low) / 2),
+                          sprintf("±%.2f points (expected)", 100 * half_width(phase2_n_per_group)))
 )
 knitr::kable(rows, caption = sprintf("Precision of the key estimate, Phase 2 expected values based on %s.", basis$source))
 
 tibble(
-  `Effect to detect` = c(sprintf("Original: %.0f points", 100 * (original_p_loss - original_p_gain)),
-                         if (!is.null(p1_stats)) sprintf("Phase 1: %.0f points", 100 * p1_stats$estimate),
-                         sprintf("Half the original: %.0f points", 50 * (original_p_loss - original_p_gain))),
+  `Effect to detect` = c(sprintf("Original: %.2f points (d_z = %.2f)", 100 * original$estimate, original_dz),
+                         if (!is.null(p1_stats)) sprintf("Phase 1: %.2f points (d_z = %.2f)", 100 * p1_stats$estimate, basis$dz),
+                         sprintf("Half the original: %.2f points (d_z = %.2f)", 50 * original$estimate, original_dz / 2)),
   `Power at planned N` = scales::percent(c(
-    power_at(phase2_n_per_group, original_p_gain, original_p_loss),
-    if (!is.null(p1_stats)) power_at(phase2_n_per_group, basis$gain, basis$loss),
-    power_at(phase2_n_per_group, original_p_gain, original_p_gain + (original_p_loss - original_p_gain) / 2)
+    power_at(phase2_n_per_group, original_dz),
+    if (!is.null(p1_stats)) power_at(phase2_n_per_group, basis$dz),
+    power_at(phase2_n_per_group, original_dz / 2)
   ), accuracy = 1)
 ) |>
-  knitr::kable(caption = sprintf("Power of the Phase 2 key test at %d per condition, two-sided alpha = .05.", phase2_n_per_group))
+  knitr::kable(caption = sprintf("Power of the Phase 2 key test (paired) at N = %d, two-sided alpha = .05.", phase2_n_per_group))
 ```
 
 ## Analysis plan
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance
 
-The confirmatory analysis for Phase 2, written before Phase 2 data collection. On the
-best-practices tracks this is normally the same key test as Phase 1, run on the Phase 2 data
-alone; say whether you will also report a pooled estimate across phases, and label it
-exploratory if so. On the scientific track, specify the test for the new comparison. Name the
-exclusion rule (unchanged unless it is in the Changes table) and list any exploratory measures.
+The confirmatory analysis for Phase 2, written before Phase 2 data
+collection. On the best-practices tracks this is normally the same key
+test as Phase 1, run on the Phase 2 data alone; say whether you will
+also report a pooled estimate across phases, and label it exploratory if
+so. On the scientific track, specify the test for the new comparison.
+Name the exclusion rule (unchanged unless it is in the Changes table)
+and list any exploratory measures.
 
-Run Phase 2 under a new `EXPERIMENT.id` in `experiment.js` (for example `smith2016-phase2`) and
-set `experiment_id_phase2` at the top of this file to match, so the two phases' data never mix.
+Run Phase 2 under a new `EXPERIMENT.id` in `experiment.js` (for example
+`smith2016-phase2`) and set `experiment_id_phase2` at the top of this
+file to match, so the two phases' data never mix.
 :::
 
 ## Results
@@ -824,26 +984,30 @@ comparison_plot(Original = original,
 
 ## Discussion
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance
 
-Compare Phase 2 with Phase 1 and with the original, using the Key statistics table and the figure
-above. Did the precision improve as you expected? For a rescue, did addressing the plausible
-reasons recover the effect? For a scientific extension, what does the new condition show? End
-with what the two phases together say about the original finding.
+Compare Phase 2 with Phase 1 and with the original, using the Key
+statistics table and the figure above. Did the precision improve as you
+expected? For a rescue, did addressing the plausible reasons recover the
+effect? For a scientific extension, what does the new condition show?
+End with what the two phases together say about the original finding.
 :::
 
 # Data and code availability
 
-::: {.callout-tip icon=false}
+::: {.callout-tip icon="false"}
 ## Guidance
 
-Edit the statement below to match what you are actually sharing. Anonymized data and all code
-should be public; if something cannot be shared, say what and why.
+Edit the statement below to match what you are actually sharing.
+Anonymized data and all code should be public; if something cannot be
+shared, say what and why.
 :::
 
-The experiment code, the anonymized data, and the code that produces every number in this
-report are available at <https://github.com/psych251/your-repo>. The experiment itself can be
-taken at <https://psych251.github.io/your-repo/>. The data contain no names, email addresses,
-IP addresses, or Prolific IDs; the file linking participants to their Prolific IDs is kept
-privately for payment and is not shared.
+The experiment code, the anonymized data, and the code that produces
+every number in this report are available at
+<https://github.com/psych251/your-repo>. The experiment itself can be
+taken at <https://psych251.github.io/your-repo/>. The data contain no
+names, email addresses, IP addresses, or Prolific IDs; the file linking
+participants to their Prolific IDs is kept privately for payment and is
+not shared.
