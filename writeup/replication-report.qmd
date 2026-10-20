@@ -56,6 +56,11 @@ library(jsonlite)
 # Phase 2 runs under its own id, so its data never mix with Phase 1's.
 experiment_id        <- "patil2018-pilot-a"
 experiment_id_phase2 <- "patil2018-phase2"
+
+# Minimum test trials for a session to be analysed. A full session has 484 (242 scenes + 242
+# objects). PILOT ONLY: lowered to 48 so shortened ?n=24 runs on localhost can be analysed.
+# Set back to 484 before the final data collection.
+min_test_trials <- 48
 ```
 
 ```{r}
@@ -135,9 +140,9 @@ you used no AI tools, replace the table with a sentence saying so.
 
 | Tool and model | What it was used for | How you checked the output |
 |------------------------|------------------------|------------------------|
-| *e.g., Claude Code (Claude Opus 5)* | *Implemented the experiment from the original Methods section* | *Ran the automated tests; took the study myself; compared every screen with the original materials* |
-| *e.g., Claude Code (Claude Opus 5)* | *Drafted the analysis code* | *Checked the exclusion counts by hand; confirmed the key test matches the preregistration* |
-| *e.g., ChatGPT* | *Comments on my draft of the Introduction (no text generated)* | *Decided which comments to act on and made every change myself; checked any factual claim against the source* |
+| Claude Code (Claude Opus 5.5) | Implemented Experiment 1 in `experiment.js` from the paper's Method: encoding and retrieval timeline, timings, per-participant randomization and retrieval-sequence constraints, trial-level data fields, post-study questions. Added the jsPsych preload plugin. Downloaded and selected the placeholder images. | Ran the study myself and checked the output data against the descriptions in the paper. |
+| Claude Code (Claude Opus 5.5) | Added saving of the browser-interaction log (tab/window blur and focus) to the participant data | Checked the output data for the fields where browser interactions are saved. |
+| Claude Code (Claude Opus 5.5) | Wrote the analysis code in this report: exclusion rule, corrected associative-memory accuracy, d′, the key statistic, the 2 × 2 repeated-measures ANOVAs, the side-by-side figure, and the pilot minimum-trials setting; fixed render errors | Read the code myself and made sure it was running the correct estimations. |
 
 I wrote all of the text in this report myself. AI tools were not used to
 write, rewrite or paraphrase it, and were not used to generate, alter,
@@ -179,7 +184,7 @@ read_phase <- function(id) {
   #   - reported prior participation in a similar study ("Yes"; "Not sure" is kept),
   #   - reported drowsiness "Throughout most of the study",
   # plus two checks on the session itself:
-  #   - fewer than the full 484 test trials (e.g. a shortened ?n= test run),
+  #   - fewer than `min_test_trials` test trials (set at the top; 484 = a full session),
   #   - no response to any test trial (what a device without a keyboard produces).
   post <- trials |>
     filter(task == "post_study") |>
@@ -196,7 +201,7 @@ read_phase <- function(id) {
   checked <- complete |>
     left_join(ret, by = "participant_id") |>
     left_join(post, by = "participant_id") |>
-    mutate(excl_short       = is.na(n_retrieval) | n_retrieval < n_retrieval_full,
+    mutate(excl_short       = is.na(n_retrieval) | n_retrieval < min_test_trials,
            excl_no_response = !excl_short & n_responded == 0,
            excl_prior       = prior_participation %in% "Yes",
            excl_drowsy      = drowsiness %in% "Throughout most of the study",
@@ -207,9 +212,6 @@ read_phase <- function(id) {
        complete = complete, checked = checked, keep = keep,
        n_no_response = sum(checked$excl_no_response))
 }
-
-# Number of test trials in a full-length session: 242 scenes + 242 objects.
-n_retrieval_full <- 484
 
 # Per participant x preceding judgment x category: corrected associative-memory accuracy and
 # d', computed as in Patil & Duncan (2018), Data analysis (pp. 47-48).
@@ -449,22 +451,21 @@ Links to the provisional images:
 ### Procedure
 
 The procedure will be close to the original experiment, with the main
-difference that the current replication will be held online. 
+difference that the current replication will be held online.
 
-The total study is divided into 
+The total study is divided into
 
-1. Consent form
-2. Images preloading. Participant waits for a few seconds without taking action.
-3. Welcome page. Brief explanation of the study. 
-4. Demographic information
-5. Experiment
-  5.1 Study phase
-  5.2 Retrieval phase
-6. Post study questions: strategy, drowsiness. 
-7. Feedback: question about instructions clarity. 
-8. Debrief. 
+1.  Consent form
+2.  Images preloading. Participant waits for a few seconds without
+    taking action.
+3.  Welcome page. Brief explanation of the study.
+4.  Demographic information
+5.  Experiment 5.1 Study phase 5.2 Retrieval phase
+6.  Post study questions: strategy, drowsiness.
+7.  Feedback: question about instructions clarity.
+8.  Debrief.
 
-The task takes ~50 minutes to complete. 
+The task takes \~50 minutes to complete.
 
 The design and timing will follow the original paper:
 
@@ -475,7 +476,7 @@ memory for the images.*
 
 *Encoding session. During each trial in the encoding session, an
 image-word pair was displayed on the screen for 3 s. Images were trial
-unique, and each image was pseudorandomly paired with one of the three
+unique, and each image was pseudo-randomly paired with one of the three
 words, such that all three words appeared an equal number of times
 across the experiment. Participants were asked to vividly imagine a
 scenario in which the word could describe the image to encourage deep
@@ -483,70 +484,67 @@ processing of image-word pairs. After the pair disappeared, participants
 had 1.5 s to rate the imagined scenario on a 4-point continuous scale on
 the keyboard, using “h” (very vivid), “j,” “k,” and “l” (not vivid at
 all). A fixation cross was presented at the center of the screen for 1 s
-before each trial. A poststudy debriefing session revealed that all
-participants’ memoryencoding strategies were consistent with the
+before each trial. A post study debriefing session revealed that all
+participants’ memory encoding strategies were consistent with the
 instructions. Participants were informed before the encoding session
 that their memory would be assessed. The encoding session was split into
 eight 3-min blocks. Half the blocks consisted of scene-word pairs, and
 the remaining blocks consisted of object-word pairs. Scene and object
 blocks were presented in a counterbalanced alternating order.*
 
-*Retrieval session. During the memory test, we assessed
-participants’ item and associative memory simultaneously.
-Critically, we manipulated whether participants made
-each memory decision after an unrelated familiar or novel
-image. During each retrieval trial, an image was shown
-on the screen for 2 s. Participants were asked to indicate
-whether the image was new (by pressing the “d” key) or
-old, in which case they were asked to recall the word
-associated with it in the encoding session (by pressing
-the “j,” “k,” or “l” keys, which corresponded with “ancient,”
-“plain,” and “safe,” respectively). They were asked to press
-the “f” key if they thought that an image was old but were
-unable to recall the associated word (associative skip).
-Note that these response options allowed us to assess
-participants’ item and associative memory with a single
-response. The response window was intentionally short,
-consistent with past research (Duncan et al., 2012), so that
-(a) memory judgments were made before the mnemonic processing
-bias from the preceding trial dissipated and (b)
-the bias from the preceding trial would not be overcome
-with sufficient processing time. A central fixation cross
-was presented during a 1-s interstimulus interval (ISI).*
+*Retrieval session. During the memory test, we assessed participants’
+item and associative memory simultaneously. Critically, we manipulated
+whether participants made each memory decision after an unrelated
+familiar or novel image. During each retrieval trial, an image was shown
+on the screen for 2 s. Participants were asked to indicate whether the
+image was new (by pressing the “d” key) or old, in which case they were
+asked to recall the word associated with it in the encoding session (by
+pressing the “j,” “k,” or “l” keys, which corresponded with “ancient,”
+“plain,” and “safe,” respectively). They were asked to press the “f” key
+if they thought that an image was old but were unable to recall the
+associated word (associative skip). Note that these response options
+allowed us to assess participants’ item and associative memory with a
+single response. The response window was intentionally short, consistent
+with past research (Duncan et al., 2012), so that (a) memory judgments
+were made before the mnemonic processing bias from the preceding trial
+dissipated and (b) the bias from the preceding trial would not be
+overcome with sufficient processing time. A central fixation cross was
+presented during a 1-s interstimulus interval (ISI).*
 
-*The retrieval session was split into four 6-min blocks.
-Half of the images presented during the memory test
-had been previously studied during the encoding session,
-while the remaining were novel. Critically, scene
-and object images alternated during the memory test.
-This reduced the possibility of consecutive old images
-semantically priming each other, because consecutive
-images always belonged to different stimulus categories
-and were, thus, studied during different encoding
-blocks. Stimulus presentation was predetermined such
-that no more than four new stimuli appeared consecutively
-and the transition probability between seeing old
-and new images was .50.*
+*The retrieval session was split into four 6-min blocks. Half of the
+images presented during the memory test had been previously studied
+during the encoding session, while the remaining were novel. Critically,
+scene and object images alternated during the memory test. This reduced
+the possibility of consecutive old images semantically priming each
+other, because consecutive images always belonged to different stimulus
+categories and were, thus, studied during different encoding blocks.
+Stimulus presentation was predetermined such that no more than four new
+stimuli appeared consecutively and the transition probability between
+seeing old and new images was .50.*
 
 ![](images/original-figure.png){width="547"}
 
 ### Analysis plan
 
-The planned exclusion criteria are: 
+The planned exclusion criteria are:
 
-- Trials in which participants switched tabs (browser interactions). 
-- Trials that were preceded by an excluded trial based on tab switches. 
-- At the participant level, I will exclude participants with more than 10% of test trials affected by the trial-level rule. 
+-   Trials in which participants switched tabs (browser interactions).
+-   Trials that were preceded by an excluded trial based on tab
+    switches.
+-   At the participant level, I will exclude participants with more than
+    10% of test trials affected by the trial-level rule.
 
-The main statistical test will be the same stated in the paper: *"Separate 2 (preceding judgment: old vs. new) ×
-2 (stimulus: object vs. scene) repeated measures analyses
-of variance (ANOVAs) were used to analyze corrected
-associative-memory accuracy, response time on
-trials on which associative memory was correct, and d′.
-Paired-samples t tests (two-tailed) were used to examine
-simple effects."* 
+The main statistical test will be the same stated in the paper:
+*"Separate 2 (preceding judgment: old vs. new) × 2 (stimulus: object vs.
+scene) repeated measures analyses of variance (ANOVAs) were used to
+analyze corrected associative-memory accuracy, response time on trials
+on which associative memory was correct, and d′. Paired-samples t tests
+(two-tailed) were used to examine simple effects."*
 
-The analysis is aimed at revealing a main effect of preceding judgment (old vs. new) on corrected associative memory accuracy. Specifically, accuracy is expected to be higher when the preceding trial was identified as old. 
+The analysis is aimed at revealing a main effect of preceding judgment
+(old vs. new) on corrected associative memory accuracy. Specifically,
+accuracy is expected to be higher when the preceding trial was
+identified as old.
 
 ### Differences from the original study
 
@@ -614,7 +612,7 @@ bind_rows(
 
 # Why completed sessions were excluded (a session can meet more than one criterion).
 phase1$checked |>
-  summarise(`Shortened session (< 484 test trials)` = sum(excl_short),
+  summarise(!!sprintf("Shortened session (< %d test trials)", min_test_trials) := sum(excl_short),
             `No response to any test trial`        = sum(excl_no_response),
             `Prior participation`                   = sum(excl_prior),
             `Drowsy throughout`                     = sum(excl_drowsy)) |>
@@ -634,6 +632,10 @@ if (n_no_response > 0) {
               n_no_response))
 }
 if (nrow(keep) == 0) cat(" No participants remain for analysis yet, so the results below are empty.")
+if (min_test_trials < 484) {
+  cat(sprintf(" **Pilot setting: sessions with at least %d test trials are analysed; a full session has 484.**",
+              min_test_trials))
+}
 cat("\n")
 ```
 
