@@ -47,7 +47,10 @@ async function runToDebrief(page) {
     await page.locator(".study-pair").waitFor({ state: "visible" });
     const rating = page.locator('[data-screen="vividness"]');
     await rating.waitFor({ state: "visible" });
-    if (b > 0) await page.keyboard.press("h");
+    if (b > 0) {
+      await page.keyboard.press("h");
+      await expectKeyFeedback(rating, "h");
+    }
     await rating.waitFor({ state: "detached" });
   }
   // 6. retrieval: three instruction pages, then 4 blocks of 4 trials
@@ -61,8 +64,15 @@ async function runToDebrief(page) {
       await stim.waitFor({ state: "visible" });
       const isOld = (await stim.getAttribute("data-old")) === "true";
       const word = await stim.getAttribute("data-word");
-      if (t === 1) await page.keyboard.press(isOld ? "d" : "f");           // wrong on purpose
-      else if (t > 1) await page.keyboard.press(isOld ? WORD_KEYS[word] : "d");
+      const key = t === 1 ? (isOld ? "d" : "f")                            // wrong on purpose
+        : t > 1 ? (isOld ? WORD_KEYS[word] : "d") : null;                  // t === 0 times out
+      if (key) {
+        await page.keyboard.press(key);
+        await page.keyboard.press(key === "d" ? "l" : "d");                 // a second key must not light up
+        await expectKeyFeedback(stim, key);
+      } else {
+        await expect(stim.locator(".key-reminder .pressed")).toHaveCount(0);
+      }
       await stim.waitFor({ state: "detached" });
     }
   }
@@ -76,6 +86,12 @@ async function runToDebrief(page) {
   await page.locator("#jspsych-survey-likert-next").click();
   await page.locator("textarea").fill("Robot participant says hi.");
   await page.locator("#jspsych-survey-text-next").click();
+}
+
+// Key-press feedback: exactly one key, the first one pressed, is highlighted.
+async function expectKeyFeedback(screen, key) {
+  await expect(screen.locator(".key-reminder .pressed")).toHaveCount(1);
+  await expect(screen.locator(".key-reminder .pressed")).toHaveAttribute("data-key", key);
 }
 
 async function runThroughExperiment(page) {
