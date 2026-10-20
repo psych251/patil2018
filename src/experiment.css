@@ -23,3 +23,8 @@ body:has(.jspsych-content.task-screen) { background: #9a9a9a; }
 }
 .rating-prompt p, .break-screen p { font-size: 18px; text-align: center; }
 .key-list { line-height: 2; }
+
+/* Key-press feedback: the first key pressed on a rating or test screen lights up. */
+.key-reminder span { padding: 2px 6px; border-radius: 6px; }
+.key-reminder span.pressed { background: #1E6E76; color: #fff; }
+.jspsych-display-element .key-reminder span.pressed kbd { background: #fff; border-color: #fff; color: #1E6E76; }
