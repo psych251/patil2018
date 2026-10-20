@@ -13,6 +13,7 @@
  *   Trials   Encoding: 8 blocks (4 scene, 4 object, alternating), each trial = 1 s fixation,
  *            3 s image + word, 1.5 s vividness rating (H J K L). Retrieval: 4 blocks; each trial =
  *            2 s image (D new, F old/can't recall word, J ancient, K plain, L safe), 1 s fixation ISI.
+ *            On rating and test screens the first key pressed lights up, as in the original scripts.
  *   Random   Per participant: which half of each category is studied, image-word pairing (each word
  *            used equally often within category), encoding order, which category starts encoding
  *            (`first_encoding_category`, random assignment) and retrieval (`first_retrieval_category`).
@@ -33,9 +34,10 @@
  *   8. feedback           Likert + free text
  *   9. debrief            saves data, then shows thanks or redirects to Prolific (required last)
  *
- * Images are placeholders until the original stimuli are available: scenes from Konkle et al.
- * (2010) and objects from Brady et al. (2008); see stimuli/manifest.csv. To swap in the originals,
- * replace the files in stimuli/scenes and stimuli/objects (keep the names, or edit the lists below).
+ * Images are the original Experiment 1 stimuli from the authors' OSF project (osf.io/d7w8a,
+ * testing_materials/Exp1/stim.zip): the 242 objects and 242 scenes (121 indoor, 121 outdoor)
+ * that every original participant saw, resized to at most 450 px, the size the original
+ * PsychoPy script displayed them at. stimuli/manifest.csv maps each file to its original name.
  */
 
 // ---------------------------------------------------------------------------
@@ -383,7 +385,31 @@ const T = Object.fromEntries(Object.entries(EXPERIMENT.timing).map(([k, v]) => [
   // 5. Encoding: image-word pairs, vividness rating
   // -------------------------------------------------------------------------
   const keyRow = (pairs) =>
-    `<div class="key-reminder">${pairs.map(([k, label]) => `<span><kbd>${k}</kbd> ${label}</span>`).join("")}</div>`;
+    `<div class="key-reminder">${pairs.map(([k, label]) =>
+      `<span data-key="${k.toLowerCase()}"><kbd>${k}</kbd> ${label}</span>`).join("")}</div>`;
+
+  // Key-press feedback, as in the original PsychoPy scripts: the first valid key pressed on a
+  // rating or test screen lights up in the key reminder. Only the first counts, matching the
+  // recorded response; held keys (auto-repeat) are ignored, as jsPsych ignores them.
+  let stopKeyFeedback = null;
+  const keyFeedback = (choices) => ({
+    on_load: () => {
+      let shown = false;
+      const onKey = (e) => {
+        const k = e.key.toLowerCase();
+        if (shown || e.repeat || !choices.includes(k)) return;
+        shown = true;
+        const el = jsPsych.getDisplayElement().querySelector(`.key-reminder [data-key="${k}"]`);
+        if (el) el.classList.add("pressed");
+      };
+      document.addEventListener("keydown", onKey);
+      stopKeyFeedback = () => document.removeEventListener("keydown", onKey);
+    },
+  });
+  const endKeyFeedback = () => {
+    if (stopKeyFeedback) stopKeyFeedback();
+    stopKeyFeedback = null;
+  };
   const vividReminder = keyRow([["H", "very vivid"], ["J", ""], ["K", ""], ["L", "not vivid at all"]]);
   const retrievalReminder = keyRow([["D", "new"], ["F", "old?"], ["J", "ancient"], ["K", "plain"], ["L", "safe"]]);
 
@@ -441,6 +467,7 @@ const T = Object.fromEntries(Object.entries(EXPERIMENT.timing).map(([k, v]) => [
     choices: VIVIDNESS_KEYS,
     trial_duration: T.encoding_rating,
     response_ends_trial: false, // fixed 1.5 s window, so every trial has the same timing
+    ...keyFeedback(VIVIDNESS_KEYS),
     css_classes: ["task-screen"],
     save_trial_parameters: { stimulus: false },
     data: {
@@ -451,6 +478,7 @@ const T = Object.fromEntries(Object.entries(EXPERIMENT.timing).map(([k, v]) => [
       encoding_block: jsPsych.timelineVariable("encoding_block"),
     },
     on_finish: (data) => {
+      endKeyFeedback();
       data.timed_out = data.response === null;
       // 1 = very vivid (H) ... 4 = not vivid at all (L)
       data.vividness_rating = data.timed_out ? null : VIVIDNESS_KEYS.indexOf(data.response) + 1;
@@ -514,6 +542,7 @@ const T = Object.fromEntries(Object.entries(EXPERIMENT.timing).map(([k, v]) => [
     choices: Object.keys(RETRIEVAL_KEYS),
     trial_duration: T.retrieval_image,
     response_ends_trial: false, // the image stays up for the full 2 s, as in the paper
+    ...keyFeedback(Object.keys(RETRIEVAL_KEYS)),
     css_classes: ["task-screen"],
     save_trial_parameters: { stimulus: false },
     data: {
@@ -527,6 +556,7 @@ const T = Object.fromEntries(Object.entries(EXPERIMENT.timing).map(([k, v]) => [
       retrieval_position: jsPsych.timelineVariable("retrieval_position"),
     },
     on_finish: (data) => {
+      endKeyFeedback();
       data.timed_out = data.response === null;
       data.response_label = data.timed_out ? null : RETRIEVAL_KEYS[data.response]; // new/skip/ancient/plain/safe
       data.judgment = data.timed_out ? null : data.response_label === "new" ? "new" : "old";
