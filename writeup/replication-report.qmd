@@ -437,16 +437,7 @@ The stimuli will be the same as in the original experimental design:
 scenes and 242 common objects (484 images total), along with three words
 (“ancient,” “plain,” “safe”)"*
 
-The authors published the original stimuli online, however, due to
-maintenance of the OSF website, I am currently using **a different set
-of images** of scenes and objects from the Brady Lab at UCLA and the
-Konkle lab at Harvard (Brady, Konkle, Alvarez & Oliva, 2008). As soon as
-I gain access to the orignal stimuli, the images will be replaced.
-
-Links to the provisional images:
-
--   Konkle images set: https://konklab.fas.harvard.edu/#
--   Brady lab images set: https://bradylab.ucsd.edu/stimuli.html
+The original stimuli were published in the OSF website: https://osf.io/d7w8a/overview, so they were downloaded and incorporated in the task code. 
 
 ### Procedure
 
