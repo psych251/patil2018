@@ -14,7 +14,7 @@ const { test, expect, devices } = require("@playwright/test");
 
 const EMULATOR = process.env.EMULATOR === "1" || !!process.env.FIRESTORE_EMULATOR_HOST;
 const PROJECT = "demo-psych251";
-const EXPERIMENT_ID = "patil2018-pilot-a";
+const EXPERIMENT_ID = "patil2018-pilot-b";
 const FS = `http://localhost:8080/v1/projects/${PROJECT}/databases/(default)/documents`;
 // Test-only shrink: 8 images per category (4 studied, 4 new) at 0.3x speed, so a full run takes
 // about half a minute. experiment.js honours these only on the emulator or localhost.

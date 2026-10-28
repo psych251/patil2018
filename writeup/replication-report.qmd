@@ -54,13 +54,12 @@ library(jsonlite)
 
 # Must match EXPERIMENT.id in experiment.js, and the --experiment you passed to the export.
 # Phase 2 runs under its own id, so its data never mix with Phase 1's.
-experiment_id        <- "patil2018-pilot-a"
+experiment_id        <- "patil2018-pilot-b"
 experiment_id_phase2 <- "patil2018-phase2"
 
 # Minimum test trials for a session to be analysed. A full session has 484 (242 scenes + 242
-# objects). PILOT ONLY: lowered to 48 so shortened ?n=24 runs on localhost can be analysed.
-# Set back to 484 before the final data collection.
-min_test_trials <- 48
+# objects). Lower it only to analyse shortened ?n= test runs on localhost.
+min_test_trials <- 484
 ```
 
 ```{r}
