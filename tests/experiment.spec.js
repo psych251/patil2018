@@ -26,7 +26,10 @@ const WORD_KEYS = { ancient: "j", plain: "k", safe: "l" };
 
 // Plays everything up to (not including) the debrief. The robot deliberately lets the first
 // vividness rating and the first retrieval trial time out, and answers the second retrieval
-// trial wrong, so the timed_out and item_correct fields are exercised.
+// trial wrong, so the timed_out and item_correct fields are exercised. In the last encoding and
+// last retrieval block it types with Caps Lock on ("H", not "h"), which jsPsych accepts and
+// records as typed, so the key lookups must not depend on case.
+const caps = (key) => `Shift+${key.toUpperCase()}`;
 async function runToDebrief(page) {
   // 1. consent (2. preload advances by itself)
   await page.getByRole("button", { name: "I agree to participate" }).click();
@@ -48,7 +51,7 @@ async function runToDebrief(page) {
     const rating = page.locator('[data-screen="vividness"]');
     await rating.waitFor({ state: "visible" });
     if (b > 0) {
-      await page.keyboard.press("h");
+      await page.keyboard.press(b === N_ENCODING_BLOCKS - 1 ? caps("h") : "h");
       await expectKeyFeedback(rating, "h");
     }
     await rating.waitFor({ state: "detached" });
@@ -67,7 +70,7 @@ async function runToDebrief(page) {
       const key = t === 1 ? (isOld ? "d" : "f")                            // wrong on purpose
         : t > 1 ? (isOld ? WORD_KEYS[word] : "d") : null;                  // t === 0 times out
       if (key) {
-        await page.keyboard.press(key);
+        await page.keyboard.press(b === N_RETRIEVAL_BLOCKS - 1 ? caps(key) : key);
         await page.keyboard.press(key === "d" ? "l" : "d");                 // a second key must not light up
         await expectKeyFeedback(stim, key);
       } else {
@@ -192,6 +195,7 @@ test.describe("experiment", () => {
     expect(viv.length).toBe(8);
     expect(viv.filter((t) => t.timed_out).length).toBe(1);
     expect(viv.filter((t) => !t.timed_out).every((t) => t.vividness_rating === 1)).toBe(true);
+    expect(viv.some((t) => t.response === "H")).toBe(true); // Caps Lock block was exercised
     expect(trials.filter((t) => t.task === "fixation").length).toBe(0); // record_data: false
 
     // Retrieval: every image once, categories alternate, half old, preceding-trial fields filled.
@@ -207,6 +211,7 @@ test.describe("experiment", () => {
     expect(ret[0].item_correct).toBe(null);
     expect(ret[1].item_correct).toBe(false);
     expect(ret.slice(2).every((t) => t.item_correct === true)).toBe(true);
+    expect(ret.some((t) => /^[A-Z]$/.test(t.response ?? ""))).toBe(true); // Caps Lock block was exercised
     expect(ret.slice(2).filter((t) => t.is_old).every((t) => t.assoc_correct === true)).toBe(true);
     expect(ret.filter((t) => !t.is_old).every((t) => t.assoc_correct === null)).toBe(true);
     for (const r of ret) {
