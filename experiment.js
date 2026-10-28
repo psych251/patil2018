@@ -480,8 +480,9 @@ const T = Object.fromEntries(Object.entries(EXPERIMENT.timing).map(([k, v]) => [
     on_finish: (data) => {
       endKeyFeedback();
       data.timed_out = data.response === null;
-      // 1 = very vivid (H) ... 4 = not vivid at all (L)
-      data.vividness_rating = data.timed_out ? null : VIVIDNESS_KEYS.indexOf(data.response) + 1;
+      // 1 = very vivid (H) ... 4 = not vivid at all (L). jsPsych accepts keys in either case
+      // but records them as typed, so with Caps Lock on the response is "H": lowercase it.
+      data.vividness_rating = data.timed_out ? null : VIVIDNESS_KEYS.indexOf(data.response.toLowerCase()) + 1;
     },
   };
 
@@ -558,7 +559,8 @@ const T = Object.fromEntries(Object.entries(EXPERIMENT.timing).map(([k, v]) => [
     on_finish: (data) => {
       endKeyFeedback();
       data.timed_out = data.response === null;
-      data.response_label = data.timed_out ? null : RETRIEVAL_KEYS[data.response]; // new/skip/ancient/plain/safe
+      // new/skip/ancient/plain/safe; lowercased because Caps Lock records "D" (see encRating)
+      data.response_label = data.timed_out ? null : RETRIEVAL_KEYS[data.response.toLowerCase()];
       data.judgment = data.timed_out ? null : data.response_label === "new" ? "new" : "old";
       data.item_correct = data.timed_out ? null : (data.judgment === "old") === data.is_old;
       // Associative hit: old image, correct word. Defined only when an old image was called old.
