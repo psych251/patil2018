@@ -60,6 +60,10 @@ experiment_id_phase2 <- "patil2018-phase2"
 # Minimum test trials for a session to be analysed. A full session has 484 (242 scenes + 242
 # objects). Lower it only to analyse shortened ?n= test runs on localhost.
 min_test_trials <- 484
+
+# Tab-switch rule (Analysis plan): exclude participants with more than this proportion of
+# test trials affected by the trial-level tab-switch rule.
+max_tab_trial_prop <- 0.10
 ```
 
 ```{r}
@@ -142,6 +146,7 @@ you used no AI tools, replace the table with a sentence saying so.
 | Claude Code (Claude Opus 5.5) | Implemented Experiment 1 in `experiment.js` from the paper's Method: encoding and retrieval timeline, timings, per-participant randomization and retrieval-sequence constraints, trial-level data fields, post-study questions. Added the jsPsych preload plugin. Downloaded and selected the placeholder images. | Ran the study myself and checked the output data against the descriptions in the paper. |
 | Claude Code (Claude Opus 5.5) | Added saving of the browser-interaction log (tab/window blur and focus) to the participant data | Checked the output data for the fields where browser interactions are saved. |
 | Claude Code (Claude Opus 5.5) | Wrote the analysis code in this report: exclusion rule, corrected associative-memory accuracy, d′, the key statistic, the 2 × 2 repeated-measures ANOVAs, the side-by-side figure, and the pilot minimum-trials setting; fixed render errors | Read the code myself and made sure it was running the correct estimations. |
+| Claude Code (Claude Opus 5.5) | Switched the study to Pilot B (`EXPERIMENT.id`, report `experiment_id`, `min_test_trials` back to 484) and added the preregistered tab-switch exclusions to the analysis code (`tab_flags()`, trial- and participant-level rules, exclusions table). Found and fixed a Caps Lock bug in the key lookups in `experiment.js` (with a test), and added `recode_keys()` to the report to rebuild the affected Pilot B participant's responses from the raw key presses | *[Add what you checked yourself]* |
 
 I wrote all of the text in this report myself. AI tools were not used to
 write, rewrite or paraphrase it, and were not used to generate, alter,
@@ -167,6 +172,79 @@ caption.
 #| label: analysis-functions
 #| code-summary: "Show the analysis code (shared by Phase 1 and Phase 2)"
 
+# Rebuild the key-derived fields from the raw key press, with the same rules as experiment.js.
+# Sessions run before the Caps Lock fix recorded "D" instead of "d", and the experiment's key
+# lookup was case-sensitive, so those trials were saved with no response_label, every
+# judgment "old", vividness 0, and wrong prev_* fields. Recoding here recovers them and leaves
+# all other sessions unchanged.
+retrieval_keys <- c(d = "new", f = "skip", j = "ancient", k = "plain", l = "safe")
+vividness_keys <- c("h", "j", "k", "l")
+recode_keys <- function(trials) {
+  trials <- trials |>
+    mutate(across(any_of(c("timed_out", "is_old", "item_correct", "assoc_correct", "prev_is_old")),
+                  as.logical))
+  if (!"retrieval" %in% trials$task) return(trials)
+  key <- tolower(trials$response)
+  trials <- trials |>
+    mutate(vividness_rating = if_else(task == "vividness" & !timed_out,
+                                      match(key, vividness_keys), vividness_rating))
+  ret <- trials |>
+    filter(task == "retrieval") |>
+    mutate(response_label = if_else(timed_out, NA_character_, unname(retrieval_keys[tolower(response)])),
+           judgment       = if_else(timed_out, NA_character_, if_else(response_label == "new", "new", "old")),
+           item_correct   = if_else(timed_out, NA, (judgment == "old") == is_old),
+           assoc_correct  = if_else(is_old & judgment %in% "old", response_label == studied_word, NA)) |>
+    arrange(participant_id, trial_index) |>
+    group_by(participant_id, retrieval_block) |>
+    mutate(first = trial_in_block == 1,
+           prev_judgment       = if_else(first, NA_character_, lag(judgment)),
+           prev_response_label = if_else(first, NA_character_, lag(response_label)),
+           prev_is_old         = if_else(first, NA, lag(is_old)),
+           prev_rt             = if_else(first, NA_real_, lag(as.numeric(rt)))) |>
+    ungroup() |>
+    select(-first)
+  bind_rows(filter(trials, task != "retrieval"), ret) |>
+    arrange(participant_id, trial_index)
+}
+
+# Trial-level tab-switch flags from each participant's interaction log (blur/focus events,
+# each tagged with the jsPsych trial_index it happened in). The participant counts as away
+# from the trial with a blur through the trial with the next focus (or the end, if no focus
+# follows). A test trial is
+#   - tab_switch:   if its trial_index falls inside an away span,
+#   - tab_excluded: if it, or the previous test trial in the same block, is tab_switch.
+# Fixation/ISI screens have their own trial_index, so being away only during an ISI does not
+# flag the test trials around it.
+tab_flags <- function(participants, trials) {
+  logs <- if ("interaction_data" %in% names(participants)) participants else
+    mutate(participants, interaction_data = NA_character_)
+  spans <- logs |>
+    filter(!is.na(interaction_data)) |>
+    transmute(participant_id, ev = map(interaction_data, ~ as_tibble(fromJSON(.x)))) |>
+    unnest(ev) |>
+    filter(event %in% c("blur", "focus")) |>
+    arrange(participant_id, time) |>
+    group_by(participant_id) |>
+    mutate(span = cumsum(event == "blur")) |>
+    filter(span > 0) |>
+    group_by(participant_id, span) |>
+    summarise(from = first(trial[event == "blur"]),
+              to   = if (any(event == "focus")) first(trial[event == "focus"]) else Inf,
+              .groups = "drop")
+  trials |>
+    filter(task == "retrieval") |>
+    select(participant_id, trial_index, retrieval_block) |>
+    left_join(spans, by = "participant_id", relationship = "many-to-many") |>
+    group_by(participant_id, trial_index, retrieval_block) |>
+    summarise(tab_switch = any(!is.na(from) & trial_index >= from & trial_index <= to),
+              .groups = "drop") |>
+    arrange(participant_id, trial_index) |>
+    group_by(participant_id, retrieval_block) |>
+    mutate(tab_excluded = tab_switch | lag(tab_switch, default = FALSE)) |>
+    ungroup() |>
+    select(participant_id, trial_index, tab_switch, tab_excluded)
+}
+
 # Load one phase's exported data and apply the exclusion rule. Returns NULL if that phase
 # has not been exported yet, which is how every section below knows to skip itself.
 read_phase <- function(id) {
@@ -176,6 +254,9 @@ read_phase <- function(id) {
   trials       <- read_csv(file.path(dir, "trials.csv"), show_col_types = FALSE)
   errors_path  <- file.path(dir, "errors.csv")
   errors <- if (file.exists(errors_path)) read_csv(errors_path, show_col_types = FALSE) else tibble()
+  trials <- recode_keys(trials)
+  trials <- trials |>
+    left_join(tab_flags(participants, trials), by = c("participant_id", "trial_index"))
 
   complete <- participants |> filter(completed)
 
@@ -184,7 +265,9 @@ read_phase <- function(id) {
   #   - reported drowsiness "Throughout most of the study",
   # plus two checks on the session itself:
   #   - fewer than `min_test_trials` test trials (set at the top; 484 = a full session),
-  #   - no response to any test trial (what a device without a keyboard produces).
+  #   - no response to any test trial (what a device without a keyboard produces),
+  # and the tab-switch rule from the Analysis plan (see tab_flags() above):
+  #   - more than `max_tab_trial_prop` of test trials tab_excluded.
   post <- trials |>
     filter(task == "post_study") |>
     mutate(resp = map(response, ~ fromJSON(.x))) |>
@@ -196,6 +279,7 @@ read_phase <- function(id) {
     group_by(participant_id) |>
     summarise(n_retrieval = n(),
               n_responded = sum(!as.logical(timed_out)),
+              prop_tab    = mean(tab_excluded),
               .groups = "drop")
   checked <- complete |>
     left_join(ret, by = "participant_id") |>
@@ -204,7 +288,8 @@ read_phase <- function(id) {
            excl_no_response = !excl_short & n_responded == 0,
            excl_prior       = prior_participation %in% "Yes",
            excl_drowsy      = drowsiness %in% "Throughout most of the study",
-           excluded         = excl_short | excl_no_response | excl_prior | excl_drowsy)
+           excl_tab         = coalesce(prop_tab > max_tab_trial_prop, FALSE),
+           excluded         = excl_short | excl_no_response | excl_prior | excl_drowsy | excl_tab)
   keep <- checked |> filter(!excluded)
 
   list(participants = participants, trials = trials, errors = errors,
@@ -217,6 +302,7 @@ read_phase <- function(id) {
 #   - Test trials only; timed-out trials and trials with no preceding judgment in the same
 #     block (first trial after a break, or the previous trial timed out) are dropped.
 #   - Response priming: trials whose correct word equals the previous response are removed.
+#   - Tab switches: tab_excluded trials (see tab_flags()) are removed.
 #   - Associative memory: old images called old. Corrected accuracy = p(correct word) -
 #     p(wrong word) / 2. "Old, can't remember" (F) responses count in the denominator only.
 #   - Item memory (d'): trials without a correct association. Hits = old images called old,
@@ -229,6 +315,7 @@ memory_cells <- function(d) {
     mutate(is_old = as.logical(is_old), timed_out = as.logical(timed_out)) |>
     filter(!timed_out, prev_judgment %in% c("old", "new")) |>
     filter(!coalesce(studied_word == prev_response_label, FALSE)) |>
+    filter(!tab_excluded) |>
     mutate(assoc_hit = is_old & judgment == "old" & response_label == studied_word,
            assoc_fa  = is_old & judgment == "old" & response_label %in% memory_words &
                          response_label != studied_word)
@@ -605,7 +692,8 @@ phase1$checked |>
   summarise(!!sprintf("Shortened session (< %d test trials)", min_test_trials) := sum(excl_short),
             `No response to any test trial`        = sum(excl_no_response),
             `Prior participation`                   = sum(excl_prior),
-            `Drowsy throughout`                     = sum(excl_drowsy)) |>
+            `Drowsy throughout`                     = sum(excl_drowsy),
+            !!sprintf("Tab switches on > %.0f%% of test trials", 100 * max_tab_trial_prop) := sum(excl_tab)) |>
   pivot_longer(everything(), names_to = "Reason", values_to = "Completed sessions excluded") |>
   knitr::kable(caption = "Exclusions among completed sessions.")
 ```
