@@ -28,3 +28,8 @@ body:has(.jspsych-content.task-screen) { background: #9a9a9a; }
 .key-reminder span { padding: 2px 6px; border-radius: 6px; }
 .key-reminder span.pressed { background: #1E6E76; color: #fff; }
 .jspsych-display-element .key-reminder span.pressed kbd { background: #fff; border-color: #fff; color: #1E6E76; }
+
+/* Phase 2 key practice: the cue replaces the picture; feedback follows each trial. */
+.practice-cue { font-size: 26px; min-height: 120px; display: flex; align-items: center; justify-content: center; }
+.practice-feedback p { font-size: 24px; }
+.practice-ok { color: #1E6E76; font-weight: 600; }
