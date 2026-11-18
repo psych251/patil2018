@@ -14,7 +14,7 @@ const { test, expect, devices } = require("@playwright/test");
 
 const EMULATOR = process.env.EMULATOR === "1" || !!process.env.FIRESTORE_EMULATOR_HOST;
 const PROJECT = "demo-psych251";
-const EXPERIMENT_ID = "patil2018-pilot-b";
+const EXPERIMENT_ID = "patil2018-phase2";
 const FS = `http://localhost:8080/v1/projects/${PROJECT}/databases/(default)/documents`;
 // Test-only shrink: 8 images per category (4 studied, 4 new) at 0.3x speed, so a full run takes
 // about half a minute. experiment.js honours these only on the emulator or localhost.
@@ -22,6 +22,22 @@ const FAST = "n=8&timescale=0.3";
 const N_ENCODING_BLOCKS = 8;
 const N_RETRIEVAL = 16;
 const N_RETRIEVAL_BLOCKS = 4;
+const N_PRACTICE = 10;
+
+// Correct answers to the Phase 2 comprehension checks (question name -> choice text).
+const ENCODING_CHECK = {
+  enc_task: "Imagine a scenario in which the word describes the picture",
+  enc_vivid_key: "H",
+  enc_tested: "Yes",
+};
+const RETRIEVAL_CHECK = { ret_new: "D", ret_skip: "F", ret_plain: "K", ret_time: "2 seconds" };
+
+async function answerCheck(page, answers) {
+  for (const [name, choice] of Object.entries(answers)) {
+    await page.locator(`[data-name="${name}"]`).getByText(choice, { exact: true }).click();
+  }
+  await page.locator('input[value="Continue"]').click();
+}
 const WORD_KEYS = { ancient: "j", plain: "k", safe: "l" };
 
 // Plays everything up to (not including) the debrief. The robot deliberately lets the first
@@ -29,8 +45,10 @@ const WORD_KEYS = { ancient: "j", plain: "k", safe: "l" };
 // trial wrong, so the timed_out and item_correct fields are exercised. In the last encoding and
 // last retrieval block it types with Caps Lock on ("H", not "h"), which jsPsych accepts and
 // records as typed, so the key lookups must not depend on case.
+// With failCheckOnce it first answers the encoding comprehension check wrong, so the
+// "read the instructions again" loop is exercised, and gets the first practice trial wrong.
 const caps = (key) => `Shift+${key.toUpperCase()}`;
-async function runToDebrief(page) {
+async function runToDebrief(page, { failCheckOnce = false } = {}) {
   // 1. consent (2. preload advances by itself)
   await page.getByRole("button", { name: "I agree to participate" }).click();
   // 3. welcome (two pages)
@@ -42,8 +60,15 @@ async function runToDebrief(page) {
   // SurveyJS boolean switches render "Yes" twice once toggled; scope to the question.
   await page.locator('[data-name="native_english"]').getByText("Yes", { exact: true }).first().click();
   await page.locator('input[value="Continue"]').click();
-  // 5. encoding: three instruction pages, then 8 blocks (break screen + 1 trial each at n=8)
+  // 5. encoding: three instruction pages and the comprehension check (repeated after a wrong
+  // answer), then 8 blocks (break screen + 1 trial each at n=8)
   for (let i = 0; i < 3; i++) await page.locator("#jspsych-instructions-next").click();
+  if (failCheckOnce) {
+    await answerCheck(page, { ...ENCODING_CHECK, enc_vivid_key: "L" });
+    await page.getByRole("button", { name: "Read the instructions again" }).click();
+    for (let i = 0; i < 3; i++) await page.locator("#jspsych-instructions-next").click();
+  }
+  await answerCheck(page, ENCODING_CHECK);
   for (let b = 0; b < N_ENCODING_BLOCKS; b++) {
     await page.locator(".break-screen").waitFor({ state: "visible" });
     await page.keyboard.press(" ");
@@ -56,8 +81,21 @@ async function runToDebrief(page) {
     }
     await rating.waitFor({ state: "detached" });
   }
-  // 6. retrieval: three instruction pages, then 4 blocks of 4 trials
+  // 6. retrieval: three instruction pages, the comprehension check, key practice (10 trials),
+  // then 4 blocks of 4 trials
   for (let i = 0; i < 3; i++) await page.locator("#jspsych-instructions-next").click();
+  await answerCheck(page, RETRIEVAL_CHECK);
+  await page.locator(".break-screen").waitFor({ state: "visible" });
+  await page.keyboard.press(" ");
+  for (let i = 0; i < N_PRACTICE; i++) {
+    const cue = page.locator(".practice");
+    await cue.waitFor({ state: "visible" });
+    const key = await cue.getAttribute("data-key");
+    const press = failCheckOnce && i === 0 ? (key === "d" ? "f" : "d") : key;
+    await page.keyboard.press(press);
+    await page.locator(".practice-feedback").waitFor({ state: "visible" });
+    await page.locator(".practice-feedback").waitFor({ state: "detached" });
+  }
   let t = 0;
   for (let b = 0; b < N_RETRIEVAL_BLOCKS; b++) {
     await page.locator(".break-screen").waitFor({ state: "visible" });
@@ -139,7 +177,7 @@ test.describe("experiment", () => {
     const mode = await page.evaluate(() => window.__saver.mode);
     expect(mode).toBe(EMULATOR ? "emulator" : "offline");
 
-    await runToDebrief(page);
+    await runToDebrief(page, { failCheckOnce: true });
     // Simulate the participant leaving the tab and coming back, for the interaction log.
     await page.evaluate(() => { window.dispatchEvent(new Event("blur")); window.dispatchEvent(new Event("focus")); });
     await page.getByRole("button", { name: "Finish" }).click();
@@ -223,6 +261,21 @@ test.describe("experiment", () => {
         expect(r.prev_is_old).toBe(prev.is_old);
       }
     }
+    // Phase 2 comprehension checks: encoding failed once (wrong vividness key), then passed;
+    // retrieval passed first time. One retry screen.
+    const checks = trials.filter((t) => t.task === "comprehension_check").sort((a, b) => a.trial_index - b.trial_index);
+    expect(checks.map((t) => [t.check, t.check_attempt, t.check_correct])).toEqual(
+      [["encoding", 1, false], ["encoding", 2, true], ["retrieval", 1, true]]);
+    expect(checks[0].check_errors).toEqual(["enc_vivid_key"]);
+    expect(trials.filter((t) => t.task === "comprehension_retry").length).toBe(1);
+    // Phase 2 key practice: 10 trials, each key twice, first one answered wrong on purpose.
+    const prac = trials.filter((t) => t.task === "practice").sort((a, b) => a.trial_index - b.trial_index);
+    expect(prac.length).toBe(N_PRACTICE);
+    for (const k of ["d", "f", "j", "k", "l"]) expect(prac.filter((t) => t.correct_key === k).length).toBe(2);
+    expect(prac[0].practice_correct).toBe(false);
+    expect(prac.slice(1).every((t) => t.practice_correct === true)).toBe(true);
+    expect(Math.max(...prac.map((t) => t.trial_index))).toBeLessThan(Math.min(...ret.map((t) => t.trial_index)));
+
     const post = trials.find((t) => t.task === "post_study");
     expect(post.response.drowsiness).toBe("Not at all");
     expect(post.response.prior_participation).toBe("No");
