@@ -64,6 +64,10 @@ min_test_trials <- 484
 # Tab-switch rule (Analysis plan): exclude participants with more than this proportion of
 # test trials affected by the trial-level tab-switch rule.
 max_tab_trial_prop <- 0.10
+
+# Phase 1 data collection began on this date. Pilot B ran under the same EXPERIMENT.id
+# (patil2018-pilot-b) on 2026-10-28, so sessions started before this date are left out.
+phase1_start <- as.POSIXct("2026-11-01", tz = "UTC")
 ```
 
 ```{r}
@@ -114,8 +118,8 @@ original_means <- tibble(
     Cognitive States Shape Fundamental Mnemonic Abilities.
     *Psychological Science, 29*(1), 45–55
     <https://doi.org/10.1177/0956797617728592>
--   **Preregistration:** [OSF registration](https://osf.io/XXXXX)
-    *(registered YYYY-MM-DD, before final data collection)*
+-   **Preregistration:** [OSF registration](https://osf.io/2guw4/overview)
+    *(registered 2026-11-01, before final data collection)*
 -   **Live experiment:** <https://psych251.github.io/patil2018/> (take
     the study exactly as participants did)
 -   **Repository:** <https://github.com/psych251/patil2018> (experiment
@@ -143,10 +147,12 @@ you used no AI tools, replace the table with a sentence saying so.
 
 | Tool and model | What it was used for | How you checked the output |
 |------------------------|------------------------|------------------------|
-| Claude Code (Claude Opus 5.5) | Implemented Experiment 1 in `experiment.js` from the paper's Method: encoding and retrieval timeline, timings, per-participant randomization and retrieval-sequence constraints, trial-level data fields, post-study questions. Added the jsPsych preload plugin. Downloaded and selected the placeholder images. | Ran the study myself and checked the output data against the descriptions in the paper. |
+| Claude Code (Claude Opus 5.5) | Implemented Experiment 1 in `experiment.js` from the paper's Method: encoding and retrieval timeline, timings, per-participant randomization and retrieval-sequence constraints, trial-level data fields, post-study questions. Added the jsPsych preload plugin. | Ran the study myself and checked the output data against the descriptions in the paper. |
 | Claude Code (Claude Opus 5.5) | Added saving of the browser-interaction log (tab/window blur and focus) to the participant data | Checked the output data for the fields where browser interactions are saved. |
 | Claude Code (Claude Opus 5.5) | Wrote the analysis code in this report: exclusion rule, corrected associative-memory accuracy, d′, the key statistic, the 2 × 2 repeated-measures ANOVAs, the side-by-side figure, and the pilot minimum-trials setting; fixed render errors | Read the code myself and made sure it was running the correct estimations. |
-| Claude Code (Claude Opus 5.5) | Switched the study to Pilot B (`EXPERIMENT.id`, report `experiment_id`, `min_test_trials` back to 484) and added the preregistered tab-switch exclusions to the analysis code (`tab_flags()`, trial- and participant-level rules, exclusions table). Found and fixed a Caps Lock bug in the key lookups in `experiment.js` (with a test), and added `recode_keys()` to the report to rebuild the affected Pilot B participant's responses from the raw key presses | *[Add what you checked yourself]* |
+| Claude Code (Claude Opus 5.5) | Switched the study to Pilot B (`EXPERIMENT.id`, report `experiment_id`, `min_test_trials` back to 484) and added the preregistered tab-switch exclusions to the analysis code (`tab_flags()`, trial- and participant-level rules, exclusions table). Found and fixed a Caps Lock bug in the key lookups in `experiment.js` (with a test), and added `recode_keys()` to the report to rebuild the affected Pilot B participant's responses from the raw key presses. Added the `phase1_start` date filter that separates the Phase 1 sessions from Pilot B, which ran under the same experiment id | Check the raw data to confirm the bug and reviewed that the recovered data was correct |
+| Claude Code (Claude Opus 5.5) | Added the exploratory fatigue analysis (`exploratory-fatigue` chunk): corrected associative accuracy and the preceding-judgment effect in the first vs second half of the test | Reviewed the code for appropriateness |
+| Claude Code (Claude Opus 5.5) | Added the exploratory sensitivity analysis applying the proposed Phase 2 chance-level exclusion (one-sided Fisher's exact test, hit rate vs false-alarm rate) to Phase 1 (`exploratory-chance-exclusion` and `exploratory-chance-excluded` chunks) | Reviewed the code for appropriateness |
 
 I wrote all of the text in this report myself. AI tools were not used to
 write, rewrite or paraphrase it, and were not used to generate, alter,
@@ -154,19 +160,6 @@ or impute any participant data. I take full responsibility for the
 content of this report, including any errors introduced by AI tools.
 
 # Key statistics
-
-::: {.callout-tip icon="false"}
-## Guidance
-
-One row per study for the key comparison: the original, your Phase 1
-replication, and your Phase 2 extension. The table fills itself in from
-the data as each phase is exported, using the analysis code below (open
-"Show the analysis code"), which is shared by both phases so they are
-analysed identically. Edit that code once, here, to match your design
-and preregistered exclusion rule. On the scientific-extension track, the
-Phase 2 row reports the new comparison: adapt its code and say so in the
-caption.
-:::
 
 ```{r}
 #| label: analysis-functions
@@ -247,11 +240,16 @@ tab_flags <- function(participants, trials) {
 
 # Load one phase's exported data and apply the exclusion rule. Returns NULL if that phase
 # has not been exported yet, which is how every section below knows to skip itself.
-read_phase <- function(id) {
+# `since`: keep only sessions started on or after this time (NULL keeps every session).
+read_phase <- function(id, since = NULL) {
   dir <- file.path("..", "data", "raw", id)
   if (!all(file.exists(file.path(dir, c("participants.csv", "trials.csv"))))) return(NULL)
   participants <- read_csv(file.path(dir, "participants.csv"), show_col_types = FALSE)
   trials       <- read_csv(file.path(dir, "trials.csv"), show_col_types = FALSE)
+  if (!is.null(since)) {
+    participants <- participants |> filter(started_at >= since)
+    trials       <- trials |> filter(participant_id %in% participants$participant_id)
+  }
   errors_path  <- file.path(dir, "errors.csv")
   errors <- if (file.exists(errors_path)) read_csv(errors_path, show_col_types = FALSE) else tibble()
   trials <- recode_keys(trials)
@@ -395,7 +393,7 @@ comparison_plot <- function(...) {
     theme(legend.position = "top")
 }
 
-phase1 <- read_phase(experiment_id)
+phase1 <- read_phase(experiment_id, since = phase1_start)
 phase2 <- read_phase(experiment_id_phase2)
 have_data   <- !is.null(phase1)
 have_phase2 <- !is.null(phase2)
@@ -469,11 +467,11 @@ and preceding trial type, respectively.
 
 ### Extension
 
-Because one of my concerns is that the length of this study (\~50
-minutes) will affect data quality, I would like to run it with less
-trials to see if an effect can be detected. Also, inspired by a
-suggestion from a TA, I could also test for differences between age
-groups.
+I propose an extension with two differences: 
+
+1. Added comprehension checks after the instructions to ensure that participants understand the task from the beginning. 
+
+2. In order to exclude participants whose performance in the task is not better than chance, I will only include those whose hit rate is significantly higher than their false alarm rate. The difference will be determined using a one-sided Fisher test with a significant level of 0.05. The goal is to remove participants that tend to select "new" or "old" in most trials. 
 
 ## Methods
 
@@ -633,14 +631,6 @@ identified as old.
 
 ### Methods addendum (post data collection)
 
-::: {.callout-tip icon="false"}
-## Guidance
-
-Leave this section out of the version you preregister. After data
-collection, report the actual sample and any deviation from the plan
-above.
-:::
-
 #### Actual sample
 
 ```{r}
@@ -740,25 +730,11 @@ if (nrow(demo) > 0) {
 
 #### Deviations from the preregistered plan
 
-::: {.callout-tip icon="false"}
-## Guidance
-
-Any deviation from the preregistered plan above, or "None". Changes made
-after seeing data belong here even if they seem minor, together with the
-reason.
-:::
+None. 
 
 ## Results
 
 ### Data preparation
-
-::: {.callout-tip icon="false"}
-## Guidance
-
-Data preparation follows the analysis plan. Loading and exclusions are
-done by the shared analysis code under Key statistics (open "Show the
-analysis code"). Describe anything you did to the data beyond that.
-:::
 
 ### Confirmatory analysis
 
@@ -793,17 +769,7 @@ rm_anova(cells, "dprime")
 
 ### Replication assessment
 
-::: {.callout-tip icon="false"}
-## Guidance
-
-Judge the replication on effect sizes, not only on whether the key test
-is significant. Compare the replication estimate and its interval with
-the original: does the interval exclude zero, and does it include the
-original estimate? A significant result much smaller than the original,
-or a non-significant result whose interval still includes the original
-effect, are both informative and should be reported as such
-(Experimentology §3.2).
-:::
+The main effect of preceding old judgement on associative memory accuracy replicated, and the original estimate is included in the replication confidence interval. However, it is important to note that the replication effect size is about half of the original effect, and that the p-value is 0.04, meaning that the evidence for the effect is moderate/weak. 
 
 ```{r}
 #| label: comparison
@@ -840,44 +806,6 @@ if (!is.null(rep) && !is.na(rep$ci_low)) {
 }
 ```
 
-::: {.callout-tip icon="false"}
-## Guidance: show the original next to your replication
-
-**Every report should have a figure that puts the original finding and
-your replication side by side.** It is the single most informative thing
-in a replication report: a reader can see at a glance whether the effect
-came back, and how its size compares. Make it however you can, in
-roughly this order of preference:
-
-1.  **Replot both from numbers.** Enter the original's summary
-    statistics (means or proportions, with SDs, SEs or CIs, and Ns) in
-    the original-study chunk at the top of this file, and plot them on
-    the same axes as yours. That is what the demo figure below does.
-
-2.  **Replot the original from its data**, if the authors shared it or
-    it is in an open repository, using exactly the same plotting code as
-    for your own data.
-
-3.  **Show the original figure as an image** next to yours if neither is
-    possible. Save a screenshot of it, for example as
-    `writeup/images/original-figure.png`, and lay the two out in
-    columns:
-
-    ```` markdown
-    ::: {layout-ncol=2}
-    ![Original: Tversky & Kahneman (1981), Figure 1](images/original-figure.png)
-
-    ```{{r}}
-    # your replication plot here
-    ```
-    :::
-    ````
-
-Whichever you choose, use the same measure, scale, condition order and
-error-bar meaning for both panels, label which is which, and cite the
-source of the original values or figure in the caption. If the original
-reported no variability, say so rather than leaving it out silently.
-:::
 
 ```{r}
 #| label: fig-comparison
@@ -890,13 +818,113 @@ comparison_plot(Original = original_means, `Phase 1: replication` = condition_me
 
 ### Exploratory analyses
 
-::: {.callout-tip icon="false"}
-## Guidance
+#### Fatigue
 
-Any follow-up analyses (optional). Label them clearly as exploratory:
-they were not planned, so they generate hypotheses rather than test
-them.
-:::
+Because the experiment had a long duration, I wanted to check if there was evidence of fatigue effects. To check this, I divided the test trials in two halves, and compared the associative memory accuracy and the main effect of prededing judgement for each one. The results show that the values do not differ from the first half of the task to the second, showing that there were not any detectable fatigue effects. 
+
+```{r}
+#| label: exploratory-fatigue
+#| eval: !expr have_data
+# Fatigue: split the test into halves (blocks 1-2 = first 242 test trials, blocks 3-4 = last
+# 242) and recompute, within each half, each participant's corrected associative-memory
+# accuracy (pooled over the four cells, weighted by trials) and the key old-minus-new effect,
+# with the same trial filters as memory_cells(). Paired t tests compare the halves; only
+# participants with data in both halves (and, for the effect, all four cells in both) count.
+half_cells <- function(d, blocks) {
+  d$trials <- d$trials |> filter(task != "retrieval" | retrieval_block %in% blocks)
+  memory_cells(d)
+}
+halves <- list(`First half (blocks 1-2)` = 1:2, `Second half (blocks 3-4)` = 3:4) |>
+  map(~ half_cells(phase1, .x))
+overall_acc <- function(cells) {
+  cells |> group_by(participant_id) |>
+    summarise(acc = sum(assoc_acc * n_assoc, na.rm = TRUE) / sum(n_assoc[!is.na(assoc_acc)]),
+              .groups = "drop")
+}
+half_effect <- function(cells) by_participant(cells) |> transmute(participant_id, effect = old - new)
+
+acc <- inner_join(overall_acc(halves[[1]]), overall_acc(halves[[2]]), by = "participant_id",
+                  suffix = c("_first", "_second"))
+eff <- inner_join(half_effect(halves[[1]]), half_effect(halves[[2]]), by = "participant_id",
+                  suffix = c("_first", "_second"))
+
+if (nrow(acc) >= 2 && nrow(eff) >= 2) {
+  ci_txt <- function(x) { tt <- t.test(x)
+    sprintf("%.2f [%.2f, %.2f]", 100 * mean(x), 100 * tt$conf.int[1], 100 * tt$conf.int[2]) }
+  p_txt <- function(a, b) { tt <- t.test(a, b, paired = TRUE)
+    sprintf("t(%d) = %.2f, p = %.3f", unname(tt$parameter), unname(tt$statistic), tt$p.value) }
+  tibble(
+    Measure = c("Corrected associative accuracy (points)", "Effect of preceding judgment, old - new (points)"),
+    N = c(nrow(acc), nrow(eff)),
+    `First half` = c(ci_txt(acc$acc_first), ci_txt(eff$effect_first)),
+    `Second half` = c(ci_txt(acc$acc_second), ci_txt(eff$effect_second)),
+    `Second - first` = c(ci_txt(acc$acc_second - acc$acc_first), ci_txt(eff$effect_second - eff$effect_first)),
+    `Paired test` = c(p_txt(acc$acc_second, acc$acc_first), p_txt(eff$effect_second, eff$effect_first))
+  ) |>
+    knitr::kable(caption = "Exploratory: first vs second half of the test (means with 95% CIs, in percentage points).")
+} else {
+  message("Not enough participants with data in both halves of the test yet.")
+}
+```
+
+#### Performance based exclusion
+
+As a way to test if exclusion based on memory acciracy could be an effective way to refine the estimate's precision and increase the replication effect size, I checked how many participats would be excluded in Phase 1 using a new rule. Concretely, the rule is to exclude subject's whose hit rate was not significantly larger than their false alarm rate. 
+
+Results show that four additional participants would be excluded by the rule, which would yield an increase of 1.65 in the difference between Old vs. New, and an corresponding increase of 0.11 in the effect size. This points to the potential of this rule to correctly exclude participants who don't show evidence of doing the memory task. 
+
+
+```{r}
+#| label: exploratory-chance-exclusion
+#| eval: !expr have_data
+# Sensitivity analysis: the chance-level exclusion proposed for Phase 2, applied to Phase 1
+# (not preregistered for Phase 1, so exploratory). A participant fails if their item hit rate
+# is not significantly higher than their false-alarm rate: one-sided Fisher's exact test on
+# their old/new image x "old"/"new" response table, p >= .05. All test trials with a response
+# count; any key other than D (F, J, K, L) is an "old" response.
+chance_test <- function(d) {
+  d$trials |>
+    filter(task == "retrieval", !timed_out) |>
+    group_by(participant_id) |>
+    summarise(hits = sum(is_old & judgment == "old"), n_old = sum(is_old),
+              fas  = sum(!is_old & judgment == "old"), n_new = sum(!is_old), .groups = "drop") |>
+    mutate(hit_rate = hits / n_old, fa_rate = fas / n_new,
+           p_chance = pmap_dbl(list(hits, n_old, fas, n_new), function(h, a, f, b)
+             fisher.test(matrix(c(h, a - h, f, b - f), 2), alternative = "greater")$p.value),
+           at_chance = p_chance >= .05)
+}
+chance <- chance_test(phase1) |> filter(participant_id %in% keep$participant_id)
+newly_excluded <- chance$participant_id[chance$at_chance]
+
+fmt_ci <- function(r) if (is.null(r) || is.na(r$ci_low)) "-" else
+  sprintf("%.2f [%.2f, %.2f]", 100 * r$estimate, 100 * r$ci_low, 100 * r$ci_high)
+fmt_p  <- function(r) if (is.null(r) || is.na(r$p)) "-" else sprintf("%.3f", r$p)
+fmt_f  <- function(r) if (is.null(r) || is.na(r$F)) "-" else sprintf("F(1, %d) = %.2f", r$df, r$F)
+fmt_es <- function(r) if (is.null(r) || is.na(r$pes)) "-" else sprintf("%.2f", r$pes)
+r_pre  <- diff_ci(cells)
+r_new  <- diff_ci(filter(cells, !participant_id %in% newly_excluded))
+tibble(Exclusions = c("Preregistered (confirmatory)", "Plus chance-level exclusion (exploratory)"),
+       `Newly excluded` = c(0L, length(newly_excluded)),
+       N = c(r_pre$N %||% 0L, r_new$N %||% 0L),
+       `Effect, old - new (points, 95% CI)` = c(fmt_ci(r_pre), fmt_ci(r_new)),
+       F = c(fmt_f(r_pre), fmt_f(r_new)),
+       p = c(fmt_p(r_pre), fmt_p(r_new)),
+       `ηp²` = c(fmt_es(r_pre), fmt_es(r_new))) |>
+  knitr::kable(caption = "Exploratory: the Phase 2 chance-level exclusion applied to Phase 1.")
+```
+
+```{r}
+#| label: exploratory-chance-excluded
+#| eval: !expr have_data
+if (length(newly_excluded) > 0) {
+  chance |>
+    filter(at_chance) |>
+    arrange(p_chance) |>
+    transmute(`Hit rate` = round(hit_rate, 2), `False-alarm rate` = round(fa_rate, 2),
+              `p (one-sided Fisher)` = signif(p_chance, 2)) |>
+    knitr::kable(caption = "Analysed Phase 1 participants who would fail the chance-level exclusion.")
+}
+```
 
 ```{r}
 #| label: exploratory-rt
@@ -931,112 +959,49 @@ if (nrow(errors) > 0) {
 
 ### Summary of replication attempt
 
-::: {.callout-tip icon="false"}
-## Guidance
+The original study by Patil and Duncan (2018) showed evidence for an effect of recent familiarity on associative memory accuracy. Specifically, they showed that associative memory was 8.23 points higher after a an "old" judgement (95% CI [4.10, 12.36], F(1, 31) = 13.88, p = .001, ηp² = .31). In my online replication, I found that participants associative memory accuracy was 4.45 points higher after an "old" judgement (95% CI [0.22, 8.68], 
+F(1, 28) = 4.64, p = .040, ηp² = .14), with the replication confidence interval including the original estimate. Considering that the replication effect size is about half of the original one, and that the confidence interval is closer to include zero, I believe this is a partial replication of the original effect. 
 
-Open with one paragraph summarizing the result of the key analysis and
-your assessment of whether the original finding replicated, partially
-replicated, or failed to replicate. Base that judgment on the
-replication assessment above: the size of the effect relative to the
-original, not just the p value.
-:::
 
 ### Commentary
 
-::: {.callout-tip icon="false"}
-## Guidance
-
-Open-ended commentary, none of it long: (a) what the exploratory
-analyses suggest; (b) what the replication means, for example whether
-the differences between your study and the original are definitely,
-plausibly, or unlikely to be moderators of the result; and (c) any
-objections or challenges raised by you or the original authors.
-:::
+The main difference with the original study is that I implemented the experiment in a remote online set up, which greatly reduces experimenter's control over participant's engagement with the task. Despite the exclusion of inattentive participants based of browser interactions, and the lack of evidence for fatigue effects, it is still very likely that participants had other distractions that hindered their performance during both encoding and retrieval sessions. 
 
 # Phase 2: Extension
 
-::: {.callout-tip icon="false"}
-## Guidance: choosing your extension
-
-Follow the Extension guidelines page on Canvas. In brief:
-
--   **By default the extension is a best-practices modification of your
-    Phase 1 experiment.** If your replication did not succeed, it is a
-    **rescue**: address the plausible reasons for the failure. If it did
-    succeed, it is an **upgrade**: make the estimate more precise.
-    Typical changes are better or more reliable measurement, more
-    trials, a within-participant design where that is legitimate,
-    comprehension and manipulation checks, clearer instructions, or a
-    larger or better-targeted sample.
--   **If your scientific extension pitch was approved at Milestone 3 and
-    your replication succeeded, propose that instead:** the original
-    conditions rerun unchanged, plus the one added condition or
-    manipulation, with a power analysis for the new comparison.
--   On either track you may add exploratory measures **at the end** of
-    the study.
--   Every change is listed and tagged by category below; everything else
-    stays identical.
-
-State your track on the line below, and delete the others.
-:::
-
-**Track:** Best-practices upgrade / Best-practices rescue / Scientific
-extension (approved at Milestone 3)
+**Track:** Best-practices upgrade
 
 ## Rationale
 
-::: {.callout-tip icon="false"}
-## Guidance
+Online experiments tend to produce noisier data than in-lab studies, partly because participants are more likely to disengage from the task. Because memory is the phenomenon under study, it is essential that participants actually attempt to encode and later recognize the images and words. This update therefore adds an exclusion criterion meant to remove participants whose behavior does not reflect real engagement with the task. Specifically, I will include only participants whose hit rate is significantly higher than their false alarm rate, as determined by a one-sided Fisher’s exact test (α = .05) run separately for each participant. For this test, any response other than “new” will be coded as “old.” This ensures that every retained participant distinguished old from new items better than chance.
 
-One or two paragraphs. For a rescue: what are the plausible reasons
-Phase 1 did not reproduce the original result, and how does each change
-address one of them? For an upgrade: where is the Phase 1 estimate least
-precise or least trustworthy, and how will the changes improve it? For a
-scientific extension: what question does the added condition answer, and
-why does it follow from the original finding?
-:::
+Following a suggestion from the teaching team, I applied this criterion to the data obtained in Phase 1, which led to excluding four additional subjects. Consequently, I observed an increase in the effect size and a decrease in the p-value, supporting the potential adequacy of this rule for Phase 2, especially considering the limitations of not increasing the sample size. 
+
+Additionally, I will add comprehension checks after the instructions, as well as a practice block for the response keys associated with each one of the words. This is meant to decrease kay press errors that are not associated with memory.
+
 
 ## Changes from Phase 1
 
-::: {.callout-tip icon="false"}
-## Guidance
-
-Every change from the Phase 1 experiment, one per row, each tagged with
-a category: Measurement, Trials, Design, Checks, Instructions, Sample,
-Added condition (scientific track only), or Exploratory measure (end of
-study only). If it is not in this table, it does not change: same
-materials, wording, procedure, exclusion rule and analysis. The rows
-below are examples for the demo; replace them with yours.
-:::
-
 | \# | Category | Phase 1 | Phase 2 | Why |
 |---------------|---------------|---------------|---------------|---------------|
-| 1 | Sample | 27 analysed participants | 300 analysed participants (150 per frame) | Phase 1's interval was too wide to distinguish the original effect from a much smaller one. |
-| 2 | Checks | No comprehension check | After the choice, participants say how many people are at risk (600) | Confirms participants read the scenario; failures are reported, and excluded only if preregistered. |
-| 3 | Exploratory measure | None | At the end: "How confident are you in your choice?" (1–7) | Exploratory only; collected after every confirmatory measure. |
+| 1 | Checks | No comprehension check | After instructions section is completed, participants will respond multi-choice questions about them | Confirms participants understand what the task requires and what each key press means |
+| 2 | Performance based exclusion | None | Participants whose hit rate is not significantly higher than their false alarm rate are excluded | Ensures analyzed participants were better than chance in the task |
+| 3 | Practice | No practice | Before the memory test, a short key-practice block: 10 trials (each response key twice, random order) showing what to respond instead of a picture, 2 s to press the key, then correct/incorrect feedback. No study images are shown | Reduces key-press errors that are not related to memory |
 
 Everything not listed above is identical to Phase 1.
 
+I expect after implementing these changes, the effect size will be larger than in Phase 1. 
+
+
 ## Power and sample
 
-::: {.callout-tip icon="false"}
-## Guidance
-
-Justify the Phase 2 sample, and **state how you expect the estimate and
-its precision to compare with Phase 1**. For an upgrade, plan the sample
-around the confidence interval you want; for a rescue, around the power
-to detect the original effect, or the smallest effect you would still
-consider a successful replication; for a scientific extension, around
-the power to detect the new comparison. Set `phase2_n_per_group` in the
-code below; the table uses Phase 1's estimate if you have it and the
-original's otherwise.
-:::
+Due to budget constrains, the same sample size of 35 will be kept. 
 
 ```{r}
 #| label: phase2-power
 # Within-participant design: every participant is in both conditions, so this is the total
 # number of analysed participants (the name is kept to match the guidance above).
-phase2_n_per_group <- 150   # planned analysed participants in Phase 2
+phase2_n_per_group <- 35   # planned analysed participants in Phase 2
 
 # Phase 1 statistics: a one-row tibble with the same columns as `original` (N, estimate,
 # ci_low, ci_high, F, df, p, pes). NULL until your Phase 1 analysis code defines it; the
@@ -1082,21 +1047,21 @@ tibble(
 
 ## Analysis plan
 
-::: {.callout-tip icon="false"}
-## Guidance
+The planned exclusion criteria are:
 
-The confirmatory analysis for Phase 2, written before Phase 2 data
-collection. On the best-practices tracks this is normally the same key
-test as Phase 1, run on the Phase 2 data alone; say whether you will
-also report a pooled estimate across phases, and label it exploratory if
-so. On the scientific track, specify the test for the new comparison.
-Name the exclusion rule (unchanged unless it is in the Changes table)
-and list any exploratory measures.
+-   Trials in which participants switched tabs (browser interactions).
+-   Trials that were preceded by an excluded trial based on tab
+    switches.
+-   At the participant level, I will exclude participants with more than
+    10% of test trials affected by the trial-level rule.
+-   Participants whose hit rate is not significantly higher than their false alarm rate. The difference will be determined using a one-sided Fisher test with a significant level of 0.05. The goal is to remove participants that tend to select "new" or "old" in most trials.  
 
-Run Phase 2 under a new `EXPERIMENT.id` in `experiment.js` (for example
-`smith2016-phase2`) and set `experiment_id_phase2` at the top of this
-file to match, so the two phases' data never mix.
-:::
+The main statistical test will be the same as in Phase 1:
+*"Separate 2 (preceding judgment: old vs. new) × 2 (stimulus: object vs.
+scene) repeated measures analyses of variance (ANOVAs) were used to
+analyze corrected associative-memory accuracy, response time on trials
+on which associative memory was correct, and d′. Paired-samples t tests
+(two-tailed) were used to examine simple effects."*
 
 ## Results
 
