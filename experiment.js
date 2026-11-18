@@ -28,11 +28,23 @@
  *   2. preload            all 484 images
  *   3. welcome
  *   4. demographics
- *   5. encoding           instructions, then 8 blocks with self-paced breaks
- *   6. retrieval          instructions, then 4 blocks with self-paced breaks
+ *   5. encoding           instructions + comprehension check, then 8 blocks with self-paced breaks
+ *   6. retrieval          instructions + comprehension check, key practice, then 4 blocks with
+ *                         self-paced breaks
  *   7. post-study         strategy, drowsiness, prior participation
  *   8. feedback           Likert + free text
  *   9. debrief            saves data, then shows thanks or redirects to Prolific (required last)
+ *
+ * Phase 2 (best-practices upgrade; see "Changes from Phase 1" in the report) adds, and changes
+ * nothing else:
+ *   - comprehension checks (task "comprehension_check") after the encoding and the memory-test
+ *     instructions: multiple choice, answer order shuffled; any wrong answer shows the
+ *     instructions again and repeats the questions until all are correct (`check_attempt`,
+ *     `check_correct`, `check_errors` record each attempt; nobody is excluded for them);
+ *   - a short key-practice block (task "practice") before the memory test: 10 trials, each
+ *     response key twice in random order, showing what to respond ("New picture", "plain", ...)
+ *     with the same key reminder and a 2 s window as the test, then correct/incorrect feedback.
+ *     No study images are shown, so the memory test is unaffected.
  *
  * Images are the original Experiment 1 stimuli from the authors' OSF project (osf.io/d7w8a,
  * testing_materials/Exp1/stim.zip): the 242 objects and 242 scenes (121 indoor, 121 outdoor)
@@ -48,7 +60,7 @@ window.TEMPLATE_VERSION = "0.1.0";
 const EXPERIMENT = {
   // Firestore path: experiments/<id>/participants/... Change it when you start a new study
   // so pilot data and real data never mix (e.g. "smith2016-pilot-a", "smith2016-final").
-  id: "patil2018-pilot-b",
+  id: "patil2018-phase2",
 
   // Trials per Firestore write. 1 = save every trial the moment it finishes (dropouts leave
   // partial data). The free tier allows 20,000 writes/day. This study records ~1,000 rows per
@@ -82,6 +94,9 @@ const EXPERIMENT = {
     encoding_rating: 1500,
     retrieval_image: 2000,
     retrieval_isi: 1000,
+    // Phase 2 key practice (not in the paper): same response window as a test trial.
+    practice_cue: 2000,
+    practice_feedback: 1000,
   },
 };
 
@@ -347,7 +362,7 @@ const T = Object.fromEntries(Object.entries(EXPERIMENT.timing).map(([k, v]) => [
        <p>This is a study about memory for pictures. It has two main parts. First you will see
        pictures of scenes and objects, each paired with a word. Then your memory for them will be
        tested. At the end there are a few short questions.</p>
-       <p>The study takes about 60 minutes. There are short breaks between blocks.</p>`,
+       <p>The study takes about 55 minutes. There are short breaks between blocks.</p>`,
       `<p>Please complete the study in one sitting, in a quiet place, on a laptop or desktop
        computer with a keyboard. Close other tabs and silence your phone. Use the buttons or the
        arrow keys to move between pages.</p>`,
@@ -412,6 +427,47 @@ const T = Object.fromEntries(Object.entries(EXPERIMENT.timing).map(([k, v]) => [
   };
   const vividReminder = keyRow([["H", "very vivid"], ["J", ""], ["K", ""], ["L", "not vivid at all"]]);
   const retrievalReminder = keyRow([["D", "new"], ["F", "old?"], ["J", "ancient"], ["K", "plain"], ["L", "safe"]]);
+
+  // Comprehension check (Phase 2): the instructions, then multiple-choice questions about them,
+  // repeated until every answer is correct. Each attempt is one "comprehension_check" row.
+  const comprehensionCheck = (name, instructions, questions) => {
+    let attempt = 0;
+    let passed = false;
+    const check = {
+      type: jsPsychSurvey,
+      survey_json: {
+        showQuestionNumbers: "off",
+        completeText: "Continue",
+        title: "Before you start, please answer these questions about the instructions.",
+        pages: [{
+          elements: questions.map((q) => ({
+            type: "radiogroup", name: q.name, title: q.title, choices: q.choices,
+            choicesOrder: "random", isRequired: true,
+          })),
+        }],
+      },
+      data: { task: "comprehension_check", check: name },
+      on_finish: (data) => {
+        attempt += 1;
+        const errors = questions.filter((q) => data.response[q.name] !== q.correct).map((q) => q.name);
+        passed = errors.length === 0;
+        data.check_attempt = attempt;
+        data.check_correct = passed;
+        data.check_errors = errors;
+      },
+    };
+    const retry = {
+      timeline: [{
+        type: jsPsychHtmlButtonResponse,
+        stimulus: `<p>Some of your answers were not correct.</p><p>Please read the instructions again
+                   carefully; the questions will follow.</p>`,
+        choices: ["Read the instructions again"],
+        data: { task: "comprehension_retry", check: name },
+      }],
+      conditional_function: () => !passed,
+    };
+    return { timeline: [instructions, check, retry], loop_function: () => !passed };
+  };
 
   const encodingInstructions = {
     type: jsPsychInstructions,
@@ -494,7 +550,24 @@ const T = Object.fromEntries(Object.entries(EXPERIMENT.timing).map(([k, v]) => [
     data: { task: "break", ...extra },
   });
 
-  const encoding = [encodingInstructions];
+  const encodingCheck = comprehensionCheck("encoding", encodingInstructions, [
+    {
+      name: "enc_task", title: "What should you do when you see a picture and a word?",
+      choices: ["Imagine a scenario in which the word describes the picture", "Remember only the picture",
+                "Decide whether the word is spelled correctly"],
+      correct: "Imagine a scenario in which the word describes the picture",
+    },
+    {
+      name: "enc_vivid_key", title: "Which key means the scenario you imagined was very vivid?",
+      choices: ["H", "L", "D"], correct: "H",
+    },
+    {
+      name: "enc_tested", title: "Will your memory for the pictures and their words be tested later?",
+      choices: ["Yes", "No"], correct: "Yes",
+    },
+  ]);
+
+  const encoding = [encodingCheck];
   encodingBlocks.forEach((block, b) => {
     const cat = block[0].category;
     encoding.push(breakScreen(
@@ -583,7 +656,86 @@ const T = Object.fromEntries(Object.entries(EXPERIMENT.timing).map(([k, v]) => [
     record_data: false, // pure timing filler; dropping ~730 rows keeps full_data under Firestore's 1 MiB limit
   };
 
-  const retrieval = [retrievalInstructions];
+  const retrievalCheck = comprehensionCheck("retrieval", retrievalInstructions, [
+    {
+      name: "ret_new", title: "You see a picture you did not study. Which key do you press?",
+      choices: ["D", "F", "J"], correct: "D",
+    },
+    {
+      name: "ret_skip", title: "You recognise a picture but cannot remember its word. Which key do you press?",
+      choices: ["D", "F", "L"], correct: "F",
+    },
+    {
+      name: "ret_plain",
+      title: "You recognise a picture and remember it was paired with \"plain\". Which key do you press?",
+      choices: ["J", "K", "L"], correct: "K",
+    },
+    {
+      name: "ret_time", title: "How long is each picture shown on the screen?",
+      choices: ["2 seconds", "5 seconds", "Until you press a key"], correct: "2 seconds",
+    },
+  ]);
+
+  // Key practice (Phase 2): each response key twice, in random order, with feedback. Shows what
+  // to respond instead of a picture, so no study image is seen before the test.
+  const PRACTICE_CUES = [
+    { cue: "<strong>New</strong> picture", correct_key: "d" },
+    { cue: "<strong>Old</strong> picture, word forgotten", correct_key: "f" },
+    { cue: "Old picture, word: <strong>ancient</strong>", correct_key: "j" },
+    { cue: "Old picture, word: <strong>plain</strong>", correct_key: "k" },
+    { cue: "Old picture, word: <strong>safe</strong>", correct_key: "l" },
+  ];
+  const practiceIntro = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `<div class="break-screen"><p><strong>Practice the keys</strong></p>
+      <p>Before the memory test, practise the five keys. Instead of a picture you will see what to
+      answer, for example "<strong>New</strong> picture" or "Old picture, word: <strong>plain</strong>".
+      Press the matching key within 2 seconds. You will see whether you were right.</p>
+      <p>Press the <strong>space bar</strong> to start the practice.</p></div>`,
+    choices: [" "],
+    css_classes: ["task-screen"],
+    data: { task: "practice_intro" },
+  };
+  let lastPractice = null;
+  const practiceTrial = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: () => `
+      <div class="practice" data-key="${jsPsych.evaluateTimelineVariable("correct_key")}">
+        <p class="practice-cue">${jsPsych.evaluateTimelineVariable("cue")}</p>
+        ${retrievalReminder}
+      </div>`,
+    choices: Object.keys(RETRIEVAL_KEYS),
+    trial_duration: T.practice_cue, // a key press ends the trial; the feedback screen follows
+    css_classes: ["task-screen"],
+    save_trial_parameters: { stimulus: false },
+    data: { task: "practice", correct_key: jsPsych.timelineVariable("correct_key") },
+    on_finish: (data) => {
+      data.timed_out = data.response === null;
+      data.practice_correct = !data.timed_out && data.response.toLowerCase() === data.correct_key;
+      lastPractice = data;
+    },
+  };
+  const practiceFeedback = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: () => {
+      const key = lastPractice.correct_key.toUpperCase();
+      const msg = lastPractice.practice_correct ? '<span class="practice-ok">Correct</span>'
+        : lastPractice.timed_out ? `Too slow. The key was <kbd>${key}</kbd>.`
+        : `Not quite. The key was <kbd>${key}</kbd>.`;
+      return `<div class="practice-feedback"><p>${msg}</p></div>`;
+    },
+    choices: "NO_KEYS",
+    trial_duration: T.practice_feedback,
+    css_classes: ["task-screen"],
+    record_data: false, // the outcome is already on the practice row
+  };
+  const practice = {
+    timeline: [practiceTrial, practiceFeedback],
+    timeline_variables: [...PRACTICE_CUES, ...PRACTICE_CUES],
+    randomize_order: true,
+  };
+
+  const retrieval = [retrievalCheck, practiceIntro, practice];
   retrievalBlocks.forEach((block, b) => {
     retrieval.push(breakScreen(
       `Memory test block ${b + 1} of ${retrievalBlocks.length}.<br>D = new, F = old but can't remember the word, J = ancient, K = plain, L = safe.`,
